@@ -1,9 +1,10 @@
-export const QUIZ_CATEGORY_LIST = ['math', 'korean', 'english'];
+export const QUIZ_CATEGORY_LIST = ['math', 'korean', 'english', 'random'];
 
 export const QUIZ_CATEGORY_LABELS = {
   math: '수학',
   korean: '한글',
   english: '영어',
+  random: '랜덤',
 };
 
 /** @typedef {{ prompt: string, answer: string, options: string[] }} QuizQuestion */
@@ -133,10 +134,111 @@ export const ENGLISH_QUESTIONS = [
   { prompt: "'책'을 영어로 하면?", answer: 'book', options: ['book', 'ball', 'pen', 'cup'] },
 ];
 
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function makeNumericOptions(answer) {
+  const value = Number(answer);
+  const wrong = new Set();
+
+  while (wrong.size < 3) {
+    const delta = randomInt(-4, 4) || randomInt(1, 3);
+    const candidate = value + delta;
+    if (candidate < 0 || String(candidate) === answer) continue;
+    wrong.add(String(candidate));
+  }
+
+  return shuffleOptions([answer, ...wrong]);
+}
+
+function buildRandomQuestions() {
+  /** @type {QuizQuestion[]} */
+  const questions = [];
+  const used = new Set();
+
+  const addQuestion = (question) => {
+    if (used.has(question.prompt)) return;
+    used.add(question.prompt);
+    questions.push(question);
+  };
+
+  while (questions.length < 50) {
+    const a = randomInt(1, 9);
+    const b = randomInt(1, 9);
+    const answer = String(a + b);
+    addQuestion({
+      prompt: `${a} + ${b} = ?`,
+      answer,
+      options: makeNumericOptions(answer),
+    });
+  }
+
+  while (questions.length < 80) {
+    const a = randomInt(5, 10);
+    const b = randomInt(1, a - 1);
+    const answer = String(a - b);
+    addQuestion({
+      prompt: `${a} - ${b} = ?`,
+      answer,
+      options: makeNumericOptions(answer),
+    });
+  }
+
+  const wordTemplates = [
+    { prompt: '하늘에 뜨는 것은?', answer: '해', options: ['해', '책', '연필', '신발'] },
+    { prompt: '비 오는 날 쓰는 것은?', answer: '우산', options: ['우산', '모자', '양말', '장갑'] },
+    { prompt: '밥 먹을 때 쓰는 것은?', answer: '숟가락', options: ['숟가락', '빗', '연필', '공'] },
+    { prompt: '다음 중 과일은?', answer: '포도', options: ['포도', '의자', '연필', '시계'] },
+    { prompt: '다음 중 동물은?', answer: '토끼', options: ['토끼', '책상', '컵', '연필'] },
+    { prompt: '다음 중 색깔은?', answer: '주황색', options: ['주황색', '책', '연필', '가방'] },
+    { prompt: '겨울에 내리는 것은?', answer: '눈', options: ['눈', '꽃', '나비', '잎사귀'] },
+    { prompt: '밤하늘에 보이는 것은?', answer: '별', options: ['별', '연필', '공', '책'] },
+    { prompt: '학교에서 듣는 것은?', answer: '수업', options: ['수업', '수영', '요리', '낚시'] },
+    { prompt: '손가락은 몇 개?', answer: '10', options: ['8', '9', '10', '11'] },
+    { prompt: "'개'를 영어로 하면?", answer: 'dog', options: ['dog', 'cat', 'fish', 'bird'] },
+    { prompt: "'고양이'를 영어로 하면?", answer: 'cat', options: ['cat', 'dog', 'cow', 'pig'] },
+    { prompt: "'사과'를 영어로 하면?", answer: 'apple', options: ['apple', 'banana', 'grape', 'melon'] },
+    { prompt: "'학교'를 영어로 하면?", answer: 'school', options: ['school', 'home', 'park', 'store'] },
+    { prompt: "'빨간색'을 영어로 하면?", answer: 'red', options: ['red', 'blue', 'green', 'yellow'] },
+    { prompt: 'Four + three = ?', answer: '7', options: ['6', '7', '8', '9'] },
+    { prompt: 'Six - two = ?', answer: '4', options: ['2', '3', '4', '5'] },
+    { prompt: 'Nine - four = ?', answer: '5', options: ['3', '4', '5', '6'] },
+    { prompt: 'Hello means?', answer: '안녕', options: ['안녕', '고마워', '미안', '잘가'] },
+    { prompt: 'Thank you means?', answer: '고마워', options: ['고마워', '안녕', '미안', '잘가'] },
+  ];
+
+  for (const template of wordTemplates) {
+    if (questions.length >= 100) break;
+    addQuestion({
+      prompt: template.prompt,
+      answer: template.answer,
+      options: shuffleOptions([...template.options]),
+    });
+  }
+
+  while (questions.length < 100) {
+    const a = randomInt(1, 10);
+    const b = randomInt(1, 10);
+    const answer = String(a + b);
+    addQuestion({
+      prompt: `${a} + ${b} = ?`,
+      answer,
+      options: makeNumericOptions(answer),
+    });
+  }
+
+  return questions;
+}
+
+/** @type {QuizQuestion[]} */
+export const RANDOM_QUESTIONS = buildRandomQuestions();
+
 const QUESTION_POOLS = {
   math: MATH_QUESTIONS,
   korean: KOREAN_QUESTIONS,
   english: ENGLISH_QUESTIONS,
+  random: RANDOM_QUESTIONS,
 };
 
 export function pickRandomQuizQuestion() {

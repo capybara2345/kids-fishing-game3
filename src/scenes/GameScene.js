@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { getTextureKeyForCreature, FUR_SEAL_TEXTURE, NORMAL_FISH_TEXTURE, RAY_TEXTURE, SQUID_TEXTURE, TURTLE_TEXTURE } from '../config/creatureAssets.js';
+import { getTextureKeyForCreature, FUR_SEAL_TEXTURE, NORMAL_FISH_TEXTURE, RAY_TEXTURE, SEAHORSE_TEXTURE, SHRIMP_TEXTURE, SQUID_TEXTURE, TURTLE_TEXTURE } from '../config/creatureAssets.js';
 import { pickRandomQuizQuestion, QUIZ_CATEGORY_LABELS } from '../config/quizQuestions.js';
 
 const GAME_WIDTH = 844;
 const WHALE_SHARK_SIZE = Math.round(GAME_WIDTH / 3);
 const MEGALODON_SIZE = Math.round(WHALE_SHARK_SIZE * 0.86);
+const DUNKLEOSTEUS_SIZE = Math.round(WHALE_SHARK_SIZE * 0.9);
 const GAME_HEIGHT = 390;
 const GAME_DURATION = 60;
 const WATER_TOP = 72;
@@ -47,6 +48,20 @@ function getSandCrawlerY(type, bobTime = 0, bobOffset = 0) {
   const bob = bobTime ? Math.sin(bobTime * 10 + bobOffset) * 1.5 : 0;
   return SAND_TOP + type.size * 0.16 + (type.sandYOffset ?? 0) + bob;
 }
+
+function getCreatureCollisionRadius(fish) {
+  return fish.creatureType.size * 0.42;
+}
+
+function creaturesOverlap(a, b) {
+  return Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y)
+    < getCreatureCollisionRadius(a) + getCreatureCollisionRadius(b);
+}
+
+function getFlyingfishAngle(vx, vy, wobble = 0) {
+  // flying_fish.png 기본 방향이 왼쪽이라 이동 벡터와 맞추려면 180° 보정
+  return Phaser.Math.RadToDeg(Math.atan2(vy, vx)) - 180 + wobble;
+}
 const ROD_BASE_OFFSET_X = 30;
 const ROD_TIP_OFFSET_X = 76;
 const ROD_OFFSET_Y = 20;
@@ -58,8 +73,11 @@ const REEL_SPEED = 320;
 const GOLDEN_FISH_CHANCE = 0.04;
 const GIANT_LINE_BREAK_CHANCE = 0.38;
 const SHARK_LINE_BREAK_CHANCE = 0.15;
-const SHARK_KINDS = new Set(['shark', 'wobbegong', 'makoshark', 'hammerhead']);
+const SHARK_KINDS = new Set(['shark', 'wobbegong', 'makoshark', 'sawshark', 'hammerhead']);
+const INK_SPLASH_KINDS = new Set(['octopus', 'squid', 'giantsquid']);
+const INK_SPLASH_DEPTH = 40;
 const QUIZ_COOLDOWN_SECONDS = 20;
+const MIN_CATCH_SUCCESS_RATE = 0.9;
 /** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'whale_shark' | null) */
 const TEST_FIRST_CREATURE = null;
 
@@ -68,6 +86,14 @@ function getLineBreakChance(type) {
   if (type.giantTier) return GIANT_LINE_BREAK_CHANCE;
   if (SHARK_KINDS.has(type.kind)) return SHARK_LINE_BREAK_CHANCE;
   return 0;
+}
+
+function resolveCatchSuccessRate(type) {
+  const catchRate = type.catchChance == null
+    ? 1
+    : Math.max(type.catchChance, MIN_CATCH_SUCCESS_RATE);
+  const successAfterHook = catchRate * (1 - getLineBreakChance(type));
+  return Math.max(successAfterHook, MIN_CATCH_SUCCESS_RATE);
 }
 const GOLDEN_FISH = {
   kind: 'golden_fish',
@@ -86,34 +112,36 @@ const CREATURES = [
   { kind: 'fish', name: '송어', color: 0x69db7c, points: 35, speed: 130, size: 30, weight: 14, ...NORMAL_FISH_TEXTURE },
   { kind: 'fish', name: '참치', color: 0x4dabf7, points: 50, speed: 160, size: 42, weight: 10, ...NORMAL_FISH_TEXTURE },
   { kind: 'jellyfish', name: '해파리', color: 0xda77f2, points: 25, speed: 55, size: 34, weight: 9 },
-  { kind: 'octopus', name: '문어', color: 0x845ef7, points: 45, speed: 70, size: 38, weight: 6, moveStyle: 'zigzag', zigzagInterval: 0.85, zigzagVerticalRatio: 0.52 },
+  { kind: 'octopus', name: '문어', color: 0x845ef7, points: 45, speed: 70, size: 64, weight: 6, moveStyle: 'diagonal', texture: 'creature_octopus', textureScale: 0.86, textureFacing: 'left' },
   { kind: 'squid', name: '오징어', color: 0xffffff, points: 38, speed: 110, size: 40, weight: 8, moveStyle: 'zigzag', zigzagInterval: 0.48, zigzagVerticalRatio: 0.68, ...SQUID_TEXTURE },
-  { kind: 'seahorse', name: '해마', color: 0xff922b, points: 30, speed: 65, size: 26, weight: 8 },
+  { kind: 'seahorse', name: '해마', color: 0xff922b, points: 30, speed: 65, size: 34, weight: 8, ...SEAHORSE_TEXTURE },
   { kind: 'turtle', name: '거북이', color: 0x40c057, points: 60, speed: 38, size: 44, weight: 8, ...TURTLE_TEXTURE, fleeFromHook: true, fleeRadius: 130, fleeSpeedMultiplier: 1.8 },
-  { kind: 'eel', name: '바다장어', color: 0x343a40, points: 40, speed: 95, size: 52, weight: 7 },
+  { kind: 'eel', name: '바다장어', color: 0x343a40, points: 40, speed: 95, size: 104, weight: 7, texture: 'creature_eel', textureScale: 0.85, textureFacing: 'left' },
   { kind: 'crab', name: '게', color: 0xfa5252, points: 22, speed: 75, size: 50, weight: 11, spawnZone: 'bottom', moveStyle: 'sand', texture: 'creature_crab', textureScale: 0.92, textureFacing: 'left' },
   { kind: 'crayfish', name: '가재', color: 0xb01e1e, points: 28, speed: 65, size: 34, weight: 9, spawnZone: 'bottom', moveStyle: 'sand', sandYOffset: -15 },
-  { kind: 'dolphin', name: '돌고래', color: 0x339af0, points: 42, speed: 120, size: 46, weight: 7, moveStyle: 'diagonal' },
-  { kind: 'flyingfish', name: '날치', color: 0x91a7ff, points: 32, speed: 140, size: 30, weight: 8, moveStyle: 'diagonal' },
+  { kind: 'dolphin', name: '돌고래', color: 0x339af0, points: 42, speed: 120, size: 72, weight: 7, moveStyle: 'diagonal', texture: 'creature_dolphin', textureScale: 0.88, textureFacing: 'left' },
+  { kind: 'flyingfish', name: '날치', color: 0x91a7ff, points: 32, speed: 140, size: 64, weight: 8, moveStyle: 'diagonal', texture: 'creature_flyingfish', textureScale: 0.9, textureFacing: 'left' },
   { kind: 'starfish', name: '불가사리', color: 0xff6b6b, points: 18, speed: 35, size: 28, weight: 10 },
-  { kind: 'shrimp', name: '새우', color: 0xff8787, points: 15, speed: 145, size: 22, weight: 12 },
+  { kind: 'shrimp', name: '새우', color: 0xff8787, points: 15, speed: 145, size: 22, weight: 12, ...SHRIMP_TEXTURE },
   { kind: 'ray', name: '가오리', color: 0x748ffc, points: 55, speed: 75, size: 48, weight: 5, ...RAY_TEXTURE },
-  { kind: 'shark', name: '상어', color: 0x5c6773, points: 80, speed: 125, size: 68, weight: 2, texture: 'creature_shark', textureFacing: 'left' },
-  { kind: 'wobbegong', name: '돌묵상어', color: 0x8d6e63, points: 70, speed: 65, size: 58, weight: 3, spawnZone: 'bottom' },
+  { kind: 'shark', name: '상어', color: 0x5c6773, points: 80, speed: 125, size: 136, weight: 2, texture: 'creature_shark', textureFacing: 'left' },
+  { kind: 'wobbegong', name: '돌묵상어', color: 0x8d6e63, points: 70, speed: 65, size: 116, weight: 3, spawnZone: 'bottom', texture: 'creature_wobbegong', textureScale: 0.82, textureFacing: 'left' },
+  { kind: 'sawshark', name: '톱상어', color: 0x78909c, points: 75, speed: 70, size: 200, weight: 3, spawnZone: 'mid', texture: 'creature_sawfish', textureScale: 0.82, textureFacing: 'left' },
   { kind: 'makoshark', name: '청상아리', color: 0x78909c, points: 75, speed: 70, size: 124, weight: 3, spawnZone: 'mid', texture: 'creature_makoshark', textureScale: 0.78, textureFacing: 'left' },
-  { kind: 'hammerhead', name: '귀상어', color: 0x607d8b, points: 85, speed: 115, size: 64, weight: 2, spawnZone: 'mid' },
-  { kind: 'orca', name: '범고래', color: 0x212529, points: 90, speed: 130, size: 72, weight: 2, spawnZone: 'large' },
+  { kind: 'hammerhead', name: '귀상어', color: 0x607d8b, points: 85, speed: 115, size: 128, weight: 2, spawnZone: 'mid', texture: 'creature_hammerhead', textureScale: 0.82, textureFacing: 'left' },
+  { kind: 'orca', name: '범고래', color: 0x212529, points: 90, speed: 130, size: 144, weight: 2, spawnZone: 'large', texture: 'creature_killer_whale', textureScale: 0.88, textureFacing: 'left' },
   { kind: 'manta', name: '만타가오리', color: 0x546e7a, points: 88, speed: 60, size: 144, weight: 2, spawnZone: 'large', ...RAY_TEXTURE, useTint: true },
-  { kind: 'giantsquid', name: '대왕오징어', color: 0x4a148c, points: 95, speed: 85, size: 76, weight: 2, spawnZone: 'deep', moveStyle: 'zigzag', zigzagInterval: 0.65, zigzagVerticalRatio: 0.58, giantTier: true, lineBreakChance: 0.35, ...SQUID_TEXTURE, textureScale: 0.82 },
+  { kind: 'giantsquid', name: '대왕오징어', color: 0x4a148c, points: 95, speed: 85, size: 114, weight: 2, spawnZone: 'deep', moveStyle: 'zigzag', zigzagInterval: 0.65, zigzagVerticalRatio: 0.58, giantTier: true, lineBreakChance: 0.35, ...SQUID_TEXTURE, textureScale: 0.82 },
   { kind: 'megalodon', name: '메갈로돈', color: 0x37474f, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_megalodon', textureScale: 1, textureFacing: 'left' },
   { kind: 'seal', name: '물개', color: 0xadb5bd, points: 48, speed: 85, size: 40, weight: 6, spawnZone: 'surface', ...FUR_SEAL_TEXTURE },
   { kind: 'leopard_seal', name: '바다표범', color: 0xf1f3f5, points: 65, speed: 100, size: 44, weight: 4, spawnZone: 'mid', ...FUR_SEAL_TEXTURE, leopardPattern: true },
-  { kind: 'dunkleosteus', name: '둔클레오사우루스', color: 0x5d4e37, points: 92, speed: 55, size: 70, weight: 2, spawnZone: 'mid' },
-  { kind: 'horseshoe_crab', name: '투구게', color: 0x6d4c41, points: 35, speed: 50, size: 36, weight: 7, spawnZone: 'bottom' },
-  { kind: 'pufferfish', name: '복어', color: 0xffe066, points: 35, speed: 70, size: 30, weight: 8, spawnZone: 'mid' },
+  { kind: 'dunkleosteus', name: '둔클레오사우루스', color: 0x5d4e37, points: 200, speed: 55, size: DUNKLEOSTEUS_SIZE, weight: 2, spawnZone: 'large', texture: 'creature_dunkleosteus', textureScale: 0.92, textureFacing: 'left' },
+  { kind: 'horseshoe_crab', name: '투구게', color: 0x6d4c41, points: 35, speed: 50, size: 44, weight: 7, spawnZone: 'bottom', texture: 'creature_horseshoe', textureScale: 0.88, textureFacing: 'left' },
+  { kind: 'pufferfish', name: '복어', color: 0xffe066, points: 35, speed: 70, size: 60, weight: 8, spawnZone: 'mid', texture: 'creature_blowfish', textureScale: 0.88, textureFacing: 'left' },
   { kind: 'carp_king', name: '잉어킹', color: 0xff922b, points: 75, speed: 90, size: 50, weight: 4, spawnZone: 'mid', texture: 'creature_carp_king', textureScale: 0.72, textureFacing: 'left' },
+  { kind: 'marlin', name: '청새치', color: 0x4dabf7, points: 120, speed: 175, size: 140, weight: 2, spawnZone: 'large', moveStyle: 'diagonal', texture: 'creature_marlin', textureScale: 0.92, textureFacing: 'left' },
   { kind: 'crocodile', name: '악어', color: 0x2b8a3e, points: 70, speed: 45, size: 84, weight: 4, spawnZone: 'surface', catchChance: 0.3, texture: 'creature_crocodile', textureScale: 0.78, textureFacing: 'left' },
-  { kind: 'pistol_shrimp', name: '딱총새우', color: 0xff6b6b, points: 28, speed: 120, size: 24, weight: 9, spawnZone: 'bottom' },
+  { kind: 'pistol_shrimp', name: '딱총새우', color: 0x339af0, points: 28, speed: 120, size: 24, weight: 9, spawnZone: 'bottom', ...SHRIMP_TEXTURE, useTint: true },
   { kind: 'whale_shark', name: '고래상어', color: 0x339af0, points: 110, speed: 28, size: WHALE_SHARK_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.42, catchChance: 0.05, texture: 'creature_whale_shark', textureScale: 1, textureFacing: 'left' },
 ];
 
@@ -526,6 +554,7 @@ export default class GameScene extends Phaser.Scene {
 
   clampWaterCreatureY(fish) {
     if (isSandCrawler(fish.creatureType)) return;
+    if (fish.creatureType.kind === 'flyingfish') return;
 
     const floor = getWaterFloorY(fish.creatureType);
     if (fish.y > floor) {
@@ -545,7 +574,10 @@ export default class GameScene extends Phaser.Scene {
       const facesLeft = type.textureFacing === 'left';
       const flipX = facesLeft ? direction > 0 : direction < 0;
 
-      if (type.useTint && type.color) {
+      if (type.useRandomTint && type.tintColors?.length) {
+        const tintColor = type.tintColors[Phaser.Math.Between(0, type.tintColors.length - 1)];
+        sprite.setTint(tintColor);
+      } else if (type.useTint && type.color) {
         sprite.setTint(type.color);
       }
 
@@ -573,7 +605,7 @@ export default class GameScene extends Phaser.Scene {
       }
 
       sprite.setPosition(x, y);
-      sprite.setFlipX(flipX);
+      sprite.setFlipX(type.kind === 'flyingfish' ? false : flipX);
       sprite.baseScale = scale;
       sprite.usesTexture = true;
       return sprite;
@@ -657,8 +689,15 @@ export default class GameScene extends Phaser.Scene {
   }
 
   applyCreatureSpawnMotion(creature, type, vx, vy) {
+    if (type.kind === 'flyingfish') {
+      creature.setAngle(getFlyingfishAngle(vx, vy));
+      return;
+    }
+
     if (type.moveStyle === 'diagonal' || type.moveStyle === 'zigzag') {
-      creature.setAngle(Phaser.Math.RadToDeg(Math.atan2(vy, vx)) * (type.moveStyle === 'zigzag' ? 0.4 : 1));
+      const angleMultiplier = type.kind === 'dolphin' ? 0.75 : type.moveStyle === 'zigzag' ? 0.4 : 1;
+      const angle = Phaser.Math.RadToDeg(Math.atan2(vy, vx)) * angleMultiplier;
+      creature.setAngle(angle);
       return;
     }
 
@@ -944,6 +983,11 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'makoshark':
+        graphics.fillStyle(type.color, 1);
+        graphics.fillEllipse(direction * 6, 0, s * 0.7, s * 0.34);
+        graphics.fillTriangle(-direction * s * 0.55, 0, -direction * s * 0.9, -10, -direction * s * 0.9, 10);
+        break;
+
       case 'sawshark':
         graphics.fillStyle(type.color, 1);
         graphics.fillEllipse(direction * 6, 0, s * 0.7, s * 0.34);
@@ -1192,7 +1236,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (type.moveStyle === 'diagonal') {
       const diagonalSpeed = type.speed * 0.707;
-      const goingUp = Phaser.Math.Between(0, 1) === 0;
+      const goingUp = type.kind === 'octopus' ? true : Phaser.Math.Between(0, 1) === 0;
       vx = direction * diagonalSpeed;
       vy = goingUp ? -diagonalSpeed : diagonalSpeed;
       y = goingUp
@@ -1303,20 +1347,41 @@ export default class GameScene extends Phaser.Scene {
     creature.destroy();
   }
 
+  applyWobbegongPredation() {
+    const activeFish = this.fishes.getChildren().filter((fish) => fish.active);
+    const wobbegongs = activeFish.filter((fish) => fish.creatureType.kind === 'wobbegong');
+    if (wobbegongs.length === 0) return;
+
+    const preyToRemove = new Set();
+
+    for (const predator of wobbegongs) {
+      for (const prey of activeFish) {
+        if (prey === predator) continue;
+        if (prey === this.caughtFish) continue;
+        if (prey.creatureType.kind === 'wobbegong') continue;
+        if (prey.creatureType.giantTier) continue;
+        if (preyToRemove.has(prey)) continue;
+        if (creaturesOverlap(predator, prey)) {
+          preyToRemove.add(prey);
+        }
+      }
+    }
+
+    preyToRemove.forEach((prey) => this.removeCreature(prey));
+  }
+
   catchFish(fish) {
     if (!this.isCasting || this.isReeling) return;
 
     const { creatureType: type } = fish;
+    const successRate = resolveCatchSuccessRate(type);
 
-    if (type.catchChance != null && Math.random() >= type.catchChance) {
-      this.escapeFromHook(fish);
-      return;
-    }
-
-    const breakChance = getLineBreakChance(type);
-
-    if (breakChance > 0 && Math.random() < breakChance) {
-      this.breakLine(fish);
+    if (Math.random() >= successRate) {
+      if (getLineBreakChance(type) > 0) {
+        this.breakLine(fish);
+      } else {
+        this.escapeFromHook(fish);
+      }
       return;
     }
 
@@ -1352,6 +1417,85 @@ export default class GameScene extends Phaser.Scene {
     }
     this.showMessage(catchMessage, isGolden || isGiant ? 2000 : 1200);
     this.updateTouchControlsVisibility();
+
+    if (INK_SPLASH_KINDS.has(type.kind)) {
+      this.showInkSplash(fish.x, fish.y, type.kind === 'giantsquid');
+    }
+  }
+
+  showInkSplash(x, y, isGiant = false) {
+    const waterHeight = SAND_TOP - WATER_TOP;
+    const blobCount = isGiant ? 22 : 14;
+    const veilAlpha = isGiant ? 0.5 : 0.38;
+    const duration = isGiant ? 1500 : 1200;
+
+    const veil = this.add.rectangle(
+      GAME_WIDTH / 2,
+      WATER_TOP + waterHeight / 2,
+      GAME_WIDTH,
+      waterHeight,
+      0x000000,
+      veilAlpha,
+    );
+    veil.setDepth(INK_SPLASH_DEPTH);
+
+    this.tweens.add({
+      targets: veil,
+      alpha: 0,
+      duration,
+      ease: 'Sine.easeOut',
+      onComplete: () => veil.destroy(),
+    });
+
+    const splash = this.add.container(x, y).setDepth(INK_SPLASH_DEPTH + 1);
+
+    for (let i = 0; i < blobCount; i += 1) {
+      const offsetX = Phaser.Math.Between(-30, 30);
+      const offsetY = Phaser.Math.Between(-24, 24);
+      const radius = Phaser.Math.Between(isGiant ? 22 : 14, isGiant ? 72 : 46);
+      const blob = this.add.ellipse(
+        offsetX,
+        offsetY,
+        radius,
+        radius * Phaser.Math.FloatBetween(0.75, 1.15),
+        0x111111,
+        Phaser.Math.FloatBetween(0.45, 0.75),
+      );
+      splash.add(blob);
+
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const spread = Phaser.Math.Between(isGiant ? 70 : 45, isGiant ? 220 : 140);
+      this.tweens.add({
+        targets: blob,
+        x: offsetX + Math.cos(angle) * spread,
+        y: offsetY + Math.sin(angle) * spread,
+        alpha: 0,
+        scaleX: Phaser.Math.FloatBetween(1.2, 1.9),
+        scaleY: Phaser.Math.FloatBetween(1.2, 1.9),
+        duration: Phaser.Math.Between(duration - 200, duration + 200),
+        ease: 'Quad.easeOut',
+      });
+    }
+
+    for (let i = 0; i < (isGiant ? 6 : 4); i += 1) {
+      const edgeBlob = this.add.ellipse(
+        Phaser.Math.Between(40, GAME_WIDTH - 40) - x,
+        Phaser.Math.Between(WATER_TOP + 20, SAND_TOP - 20) - y,
+        Phaser.Math.Between(28, 64),
+        Phaser.Math.Between(20, 48),
+        0x0a0a0a,
+        Phaser.Math.FloatBetween(0.2, 0.4),
+      );
+      splash.add(edgeBlob);
+      this.tweens.add({
+        targets: edgeBlob,
+        alpha: 0,
+        duration: duration + Phaser.Math.Between(0, 300),
+        ease: 'Sine.easeOut',
+      });
+    }
+
+    this.time.delayedCall(duration + 250, () => splash.destroy());
   }
 
   escapeFromHook(fish) {
@@ -1446,6 +1590,13 @@ export default class GameScene extends Phaser.Scene {
       fish.x += fish.vx * dt;
       fish.y += fish.vy * dt;
 
+      const touchesSurface = fish.y < WATER_TOP + 20 && fish.vy < 0;
+      const isDiagonalSwimmer = fish.creatureType.moveStyle === 'diagonal';
+      if (isDiagonalSwimmer && touchesSurface) {
+        fish.y = WATER_TOP + 20;
+        fish.vy = Math.abs(fish.vy);
+      }
+
       if (isSandCrawler(fish.creatureType)) {
         fish.vy = 0;
         fish.y = getSandCrawlerY(fish.creatureType, bobTime, fish.bobOffset);
@@ -1461,12 +1612,16 @@ export default class GameScene extends Phaser.Scene {
           fish.y += Math.sin(bobTime * 3 + fish.bobOffset) * 20 * dt;
           break;
         case 'octopus':
+          fish.angle = Phaser.Math.RadToDeg(Math.atan2(fish.vy, fish.vx || 0.001)) * 0.6
+            + Math.sin(bobTime * 3 + fish.bobOffset) * 5;
+          break;
         case 'squid':
         case 'giantsquid':
           fish.angle = Phaser.Math.RadToDeg(Math.atan2(fish.vy, fish.vx)) * 0.4;
           break;
         case 'shark':
         case 'makoshark':
+        case 'sawshark':
         case 'hammerhead':
         case 'whale_shark':
         case 'wobbegong':
@@ -1527,12 +1682,16 @@ export default class GameScene extends Phaser.Scene {
           fish.angle = Math.sin(bobTime * 1.5 + fish.bobOffset) * 4;
           break;
         case 'dolphin':
-          fish.angle = Phaser.Math.RadToDeg(Math.atan2(fish.vy, fish.vx))
-            + Math.sin(bobTime * 2 + fish.bobOffset) * 2;
+          fish.angle = Phaser.Math.RadToDeg(Math.atan2(fish.vy, fish.vx)) * 0.75
+            + Math.sin(bobTime * 4 + fish.bobOffset) * 14;
+          fish.y += Math.sin(bobTime * 3 + fish.bobOffset) * 10 * dt;
           break;
         case 'flyingfish':
-          fish.angle = Phaser.Math.RadToDeg(Math.atan2(fish.vy, fish.vx))
-            + Math.sin(bobTime * 5 + fish.bobOffset) * 4;
+          fish.angle = getFlyingfishAngle(
+            fish.vx,
+            fish.vy,
+            Math.sin(bobTime * 5 + fish.bobOffset) * 4,
+          );
           break;
         default:
           fish.angle = 0;
@@ -1541,23 +1700,39 @@ export default class GameScene extends Phaser.Scene {
 
       this.clampWaterCreatureY(fish);
 
+      if (fish.creatureType.kind === 'flyingfish') {
+        const floor = getWaterFloorY(fish.creatureType);
+        if (fish.y >= floor && fish.vy > 0) {
+          fish.y = floor;
+          fish.vy = -Math.abs(fish.vy);
+        }
+      }
+
       if (this.isCasting && !this.isReeling) {
         const dist = Phaser.Math.Distance.Between(this.hook.x, this.hook.y, fish.x, fish.y);
-        if (dist < fish.creatureType.size * 0.45) {
+        if (dist < fish.creatureType.size * 0.55) {
           this.catchFish(fish);
         }
       }
 
+      if (isDiagonalSwimmer && fish.y < WATER_TOP + 20) {
+        fish.y = WATER_TOP + 20;
+        if (fish.vy < 0) fish.vy = Math.abs(fish.vy);
+      }
+
       const horizontalMargin = Math.max(80, fish.creatureType.size + 16);
+      const escapedTop = fish.y < WATER_TOP + 20 && !isDiagonalSwimmer;
       const outOfBounds = fish.x < -horizontalMargin
         || fish.x > GAME_WIDTH + horizontalMargin
-        || fish.y < WATER_TOP + 20
+        || escapedTop
         || fish.y > WATER_BOTTOM + 20;
 
       if (outOfBounds) {
         this.removeCreature(fish);
       }
     });
+
+    this.applyWobbegongPredation();
   }
 
   finishReel() {

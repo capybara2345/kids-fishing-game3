@@ -37,6 +37,27 @@ export const TURTLE_TEXTURE = {
   textureFacing: 'left',
 };
 
+/** 해마 텍스처 (스폰마다 tintColors 중 랜덤 색상) */
+export const SEAHORSE_TINT_COLORS = [
+  0xff922b, 0xff6b6b, 0xffd43b, 0x51cf66, 0x339af0,
+  0x845ef7, 0xf06595, 0x22b8cf, 0xfd7e14, 0x94d82a,
+];
+
+export const SEAHORSE_TEXTURE = {
+  texture: 'creature_seahorse',
+  textureScale: 0.88,
+  textureFacing: 'left',
+  useRandomTint: true,
+  tintColors: SEAHORSE_TINT_COLORS,
+};
+
+/** 새우·딱총새우 공통 텍스처 (딱총새우는 tint로 구분) */
+export const SHRIMP_TEXTURE = {
+  texture: 'creature_shrimp',
+  textureScale: 0.85,
+  textureFacing: 'left',
+};
+
 /** 파일럿: 이미지로 전환 완료된 텍스처 */
 export const PILOT_TEXTURES = [
   { key: 'creature_normal_fish', path: `${ASSET_BASE}/normal_fish.png` },
@@ -52,6 +73,20 @@ export const PILOT_TEXTURES = [
   { key: 'creature_megalodon', path: `${ASSET_BASE}/megalodon.png` },
   { key: 'creature_fur_seal', path: `${ASSET_BASE}/fur_seal.png` },
   { key: 'creature_turtle', path: `${ASSET_BASE}/turtle.png` },
+  { key: 'creature_dunkleosteus', path: `${ASSET_BASE}/dunkleosteus.png` },
+  { key: 'creature_killer_whale', path: `${ASSET_BASE}/killer_whale.png` },
+  { key: 'creature_eel', path: `${ASSET_BASE}/eel.png` },
+  { key: 'creature_blowfish', path: `${ASSET_BASE}/blowfish.png` },
+  { key: 'creature_seahorse', path: `${ASSET_BASE}/seahorse.png` },
+  { key: 'creature_shrimp', path: `${ASSET_BASE}/shrimp.png` },
+  { key: 'creature_hammerhead', path: `${ASSET_BASE}/hammerhead.png` },
+  { key: 'creature_sawfish', path: `${ASSET_BASE}/sawfish.png` },
+  { key: 'creature_horseshoe', path: `${ASSET_BASE}/horseshoe.png` },
+  { key: 'creature_wobbegong', path: `${ASSET_BASE}/basking_shark.png` },
+  { key: 'creature_marlin', path: `${ASSET_BASE}/marlin.png` },
+  { key: 'creature_dolphin', path: `${ASSET_BASE}/dolpin.png` },
+  { key: 'creature_octopus', path: `${ASSET_BASE}/outopus.png` },
+  { key: 'creature_flyingfish', path: `${ASSET_BASE}/flying_fish.png` },
   { key: 'fisherman_face', path: `${ASSET_BASE}/face.png` },
 ];
 
@@ -67,34 +102,36 @@ export const CREATURE_TEXTURE_MANIFEST = [
   { kind: 'fish', name: '송어', key: 'creature_normal_fish', file: 'normal_fish.png', status: 'pilot' },
   { kind: 'fish', name: '참치', key: 'creature_normal_fish', file: 'normal_fish.png', status: 'pilot' },
   { kind: 'jellyfish', key: 'creature_jellyfish', file: 'jellyfish.png', status: 'planned' },
-  { kind: 'octopus', key: 'creature_octopus', file: 'octopus.png', status: 'planned' },
+  { kind: 'octopus', key: 'creature_octopus', file: 'outopus.png', status: 'pilot' },
   { kind: 'squid', key: 'creature_squid', file: 'squid.png', status: 'pilot' },
-  { kind: 'seahorse', key: 'creature_seahorse', file: 'seahorse.png', status: 'planned' },
+  { kind: 'seahorse', key: 'creature_seahorse', file: 'seahorse.png', status: 'pilot' },
   { kind: 'turtle', key: 'creature_turtle', file: 'turtle.png', status: 'pilot' },
-  { kind: 'eel', key: 'creature_eel', file: 'eel.png', status: 'planned' },
+  { kind: 'eel', key: 'creature_eel', file: 'eel.png', status: 'pilot' },
   { kind: 'crab', key: 'creature_crab', file: 'crap.png', status: 'pilot' },
   { kind: 'crayfish', key: 'creature_crayfish', file: 'crayfish.png', status: 'planned' },
-  { kind: 'dolphin', key: 'creature_dolphin', file: 'dolphin.png', status: 'planned' },
-  { kind: 'flyingfish', key: 'creature_flyingfish', file: 'flyingfish.png', status: 'planned' },
+  { kind: 'dolphin', key: 'creature_dolphin', file: 'dolpin.png', status: 'pilot' },
+  { kind: 'flyingfish', key: 'creature_flyingfish', file: 'flying_fish.png', status: 'pilot' },
   { kind: 'starfish', key: 'creature_starfish', file: 'starfish.png', status: 'planned' },
-  { kind: 'shrimp', key: 'creature_shrimp', file: 'shrimp.png', status: 'planned' },
+  { kind: 'shrimp', key: 'creature_shrimp', file: 'shrimp.png', status: 'pilot' },
   { kind: 'ray', key: 'creature_ray', file: 'ray.png', status: 'pilot' },
   { kind: 'shark', key: 'creature_shark', file: 'shark.png', status: 'pilot' },
-  { kind: 'wobbegong', key: 'creature_wobbegong', file: 'wobbegong.png', status: 'planned' },
+  { kind: 'wobbegong', key: 'creature_wobbegong', file: 'basking_shark.png', status: 'pilot' },
   { kind: 'makoshark', key: 'creature_makoshark', file: 'makoshark.png', status: 'pilot' },
-  { kind: 'hammerhead', key: 'creature_hammerhead', file: 'hammerhead.png', status: 'planned' },
-  { kind: 'orca', key: 'creature_orca', file: 'orca.png', status: 'planned' },
+  { kind: 'hammerhead', key: 'creature_hammerhead', file: 'hammerhead.png', status: 'pilot' },
+  { kind: 'sawshark', key: 'creature_sawfish', file: 'sawfish.png', status: 'pilot' },
+  { kind: 'orca', key: 'creature_killer_whale', file: 'killer_whale.png', status: 'pilot' },
   { kind: 'manta', key: 'creature_ray', file: 'ray.png', status: 'pilot' },
   { kind: 'giantsquid', key: 'creature_squid', file: 'squid.png', status: 'pilot' },
   { kind: 'megalodon', key: 'creature_megalodon', file: 'megalodon.png', status: 'pilot' },
   { kind: 'seal', key: 'creature_fur_seal', file: 'fur_seal.png', status: 'pilot' },
   { kind: 'leopard_seal', key: 'creature_fur_seal', file: 'fur_seal.png', status: 'pilot' },
-  { kind: 'dunkleosteus', key: 'creature_dunkleosteus', file: 'dunkleosteus.png', status: 'planned' },
-  { kind: 'horseshoe_crab', key: 'creature_horseshoe_crab', file: 'horseshoe_crab.png', status: 'planned' },
-  { kind: 'pufferfish', key: 'creature_pufferfish', file: 'pufferfish.png', status: 'planned' },
+  { kind: 'dunkleosteus', key: 'creature_dunkleosteus', file: 'dunkleosteus.png', status: 'pilot' },
+  { kind: 'horseshoe_crab', key: 'creature_horseshoe', file: 'horseshoe.png', status: 'pilot' },
+  { kind: 'pufferfish', key: 'creature_blowfish', file: 'blowfish.png', status: 'pilot' },
   { kind: 'carp_king', key: 'creature_carp_king', file: 'fishking.png', status: 'pilot' },
+  { kind: 'marlin', key: 'creature_marlin', file: 'marlin.png', status: 'pilot' },
   { kind: 'crocodile', key: 'creature_crocodile', file: 'crocodile.png', status: 'pilot' },
-  { kind: 'pistol_shrimp', key: 'creature_pistol_shrimp', file: 'pistol_shrimp.png', status: 'planned' },
+  { kind: 'pistol_shrimp', key: 'creature_shrimp', file: 'shrimp.png', status: 'pilot' },
   { kind: 'whale_shark', key: 'creature_whale_shark', file: 'whale_shark.png', status: 'pilot' },
 ];
 
