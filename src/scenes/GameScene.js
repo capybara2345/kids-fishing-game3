@@ -61,7 +61,7 @@ const SHARK_LINE_BREAK_CHANCE = 0.15;
 const SHARK_KINDS = new Set(['shark', 'wobbegong', 'makoshark', 'hammerhead']);
 const QUIZ_COOLDOWN_SECONDS = 20;
 /** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'whale_shark' | null) */
-const TEST_FIRST_CREATURE = 'turtle';
+const TEST_FIRST_CREATURE = null;
 
 function getLineBreakChance(type) {
   if (type.lineBreakChance != null) return type.lineBreakChance;
