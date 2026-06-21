@@ -101,7 +101,7 @@ export const KOREAN_QUESTIONS = [
   { prompt: '장미는 무슨 색일까?', answer: '빨간색', options: ['빨간색', '초록색', '파란색', '검은색'] },
   { prompt: '풀은 무슨 색?', answer: '초록색', options: ['초록색', '빨간색', '노란색', '하얀색'] },
   { prompt: '아침에 먹는 밥은?', answer: '아침', options: ['아침', '점심', '저녁', '간식'] },
-  { prompt: '학교에 가는 곳은?', answer: '학교', options: ['학교', '바다', '우주', '동굴'] },
+  { prompt: '학교에서 가는 곳은?', answer: '학교', options: ['교실', '바다', '우주', '동굴'] },
   { prompt: '비가 올 때 쓰는 것은?', answer: '우산', options: ['우산', '모자', '신발', '장갑'] },
   { prompt: '손을 깨끗이 할 때 쓰는 것은?', answer: '비누', options: ['비누', '연필', '공', '책'] },
   { prompt: '글을 쓸 때 쓰는 것은?', answer: '연필', options: ['연필', '숟가락', '빗', '우산'] },
@@ -173,6 +173,7 @@ export const KOREAN_QUESTIONS = [
   { prompt: '물을 마실 때 쓰는 것은?', answer: '컵', options: ['컵', '연필', '공', '책'] },
   { prompt: '낚시할 때 쓰는 것은?', answer: '낚싯대', options: ['낚싯대', '연필', '빗', '칫솔'] },
   { prompt: '그림을 그릴 때 쓰는 것은?', answer: '크레파스', options: ['크레파스', '숟가락', '빗', '칫솔'] },
+  { prompt: '유건이 생일은?', answer: '9월 10일', options: ['9월 10일', '10월 10일', '11월 10일', '12월 10일'] },
 ];
 
 /** @type {QuizQuestion[]} */

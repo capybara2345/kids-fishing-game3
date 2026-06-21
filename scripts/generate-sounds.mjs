@@ -81,8 +81,94 @@ function generateCatch(sampleRate) {
   return samples;
 }
 
+function generateQuizCorrect(sampleRate) {
+  const duration = 0.45;
+  const count = Math.floor(sampleRate * duration);
+  const samples = new Array(count);
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+
+  for (let i = 0; i < count; i += 1) {
+    const t = i / sampleRate;
+    let sample = 0;
+
+    notes.forEach((freq, index) => {
+      const start = index * 0.07;
+      if (t >= start) {
+        const elapsed = t - start;
+        sample += Math.sin(2 * Math.PI * freq * elapsed) * Math.exp(-elapsed * 4.5) * 0.24;
+      }
+    });
+
+    samples[i] = Math.max(-1, Math.min(1, sample));
+  }
+
+  return samples;
+}
+
+function generateQuizWrong(sampleRate) {
+  const duration = 0.42;
+  const count = Math.floor(sampleRate * duration);
+  const samples = new Array(count);
+
+  for (let i = 0; i < count; i += 1) {
+    const t = i / sampleRate;
+    let sample = 0;
+
+    const wompStarts = [0, 0.16];
+    wompStarts.forEach((start) => {
+      if (t >= start) {
+        const elapsed = t - start;
+        const freq = 320 - elapsed * 420;
+        sample += Math.sin(2 * Math.PI * Math.max(90, freq) * elapsed) * Math.exp(-elapsed * 7) * 0.28;
+      }
+    });
+
+    samples[i] = Math.max(-1, Math.min(1, sample));
+  }
+
+  return samples;
+}
+
+function generateApexSpawn(sampleRate) {
+  const duration = 1.35;
+  const count = Math.floor(sampleRate * duration);
+  const samples = new Array(count);
+
+  for (let i = 0; i < count; i += 1) {
+    const t = i / sampleRate;
+    let sample = 0;
+
+    if (t < 0.1) {
+      sample += (Math.random() * 2 - 1) * Math.exp(-t * 28) * 0.55;
+      sample += Math.sin(2 * Math.PI * 52 * t) * Math.exp(-t * 22) * 0.45;
+    }
+
+    const rumbleEnv = Math.exp(-t * 1.6) * (1 - Math.exp(-t * 10));
+    sample += Math.sin(2 * Math.PI * 46 * t) * rumbleEnv * 0.34;
+    sample += Math.sin(2 * Math.PI * 68 * t + 0.4) * rumbleEnv * 0.18;
+
+    if (t >= 0.12 && t < 0.9) {
+      const elapsed = t - 0.12;
+      const freq = 85 + elapsed * 210;
+      sample += Math.sin(2 * Math.PI * freq * elapsed) * Math.exp(-elapsed * 2.4) * 0.16;
+    }
+
+    if (t >= 0.58 && t < 0.82) {
+      const elapsed = t - 0.58;
+      sample += Math.sin(2 * Math.PI * 58 * elapsed) * Math.exp(-elapsed * 7) * 0.28;
+    }
+
+    samples[i] = Math.max(-1, Math.min(1, sample * 0.88));
+  }
+
+  return samples;
+}
+
 writeWav('cast.wav', generateCast(44100));
 writeWav('catch.wav', generateCatch(44100));
+writeWav('quiz_correct.wav', generateQuizCorrect(44100));
+writeWav('quiz_wrong.wav', generateQuizWrong(44100));
+writeWav('apex_spawn.wav', generateApexSpawn(44100));
 
-console.log('Generated cast.wav and catch.wav in public/assets/sounds');
+console.log('Generated cast.wav, catch.wav, quiz_correct.wav, quiz_wrong.wav, apex_spawn.wav in public/assets/sounds');
 console.log('BGM uses CC0 track: public/assets/sounds/bgm.mp3');

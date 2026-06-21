@@ -87,6 +87,9 @@ const SHARK_KINDS = new Set(['shark', 'wobbegong', 'makoshark', 'sawshark', 'ham
 const INK_SPLASH_KINDS = new Set(['octopus', 'squid', 'giantsquid']);
 const INK_SPLASH_DEPTH = 40;
 const QUIZ_COOLDOWN_SECONDS = 20;
+const LIGHTNING_FREEZE_SECONDS = 2;
+const LIGHTNING_COOLDOWN_SECONDS = 20;
+const LIGHTNING_EFFECT_DEPTH = 3;
 const MIN_CATCH_SUCCESS_RATE = 0.9;
 /** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'whale_shark' | null) */
 const TEST_FIRST_CREATURE = null;
@@ -175,17 +178,24 @@ export default class GameScene extends Phaser.Scene {
     this.apexPredatorThreatCount = 0;
     this.apexPredatorWaterTween = null;
     this.apexPredatorWaterBlend = 0;
+    this.pendingApexSpawnSound = false;
+    this.lightningCooldownLeft = 0;
+    this.lightningCooldownTimer = null;
+    this.creatureFreezeRemaining = 0;
+    this.lightningEffectContainer = null;
+    this.lightningEffectFlicker = null;
+    this.lightningEffectEndTimer = null;
 
     this.createBackground();
     this.createDock();
     this.createFisherman();
     this.createLineAndHook();
     this.maxHookDepth = Math.max(40, SAND_TOP - this.rodTipY - 10);
+    this.setupAudio();
     this.createUI();
     this.createTouchControls();
     this.createFishGroup();
     this.setupInput();
-    this.setupAudio();
     this.createStartOverlay();
 
     if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus') {
@@ -291,6 +301,11 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.showMessage(text, duration);
     }
+
+    if (this.pendingApexSpawnSound) {
+      this.pendingApexSpawnSound = false;
+      this.playApexPredatorSpawnSound();
+    }
   }
 
   createTouchButton(x, y, width, height, label, onDown, onUp) {
@@ -354,6 +369,40 @@ export default class GameScene extends Phaser.Scene {
     return button;
   }
 
+  createEmojiActionButton(x, y, emoji, onPress) {
+    const button = this.add.container(x, y);
+    const bg = this.add.rectangle(0, 0, 52, 52, 0xf59f00, 0.92);
+    bg.setStrokeStyle(2, 0xffffff);
+    const text = this.add.text(0, 0, emoji, {
+      fontFamily: 'Segoe UI, sans-serif',
+      fontSize: '26px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+
+    button.add([bg, text]);
+    button.setSize(52, 52);
+    button.setInteractive({ useHandCursor: true });
+    button.bg = bg;
+    button.label = text;
+
+    button.on('pointerdown', () => {
+      if (button.input?.enabled) {
+        bg.setFillStyle(0xe67700, 1);
+        onPress();
+      }
+    });
+
+    button.on('pointerup', () => {
+      this.updateLightningButtonState();
+    });
+
+    button.on('pointerout', () => {
+      this.updateLightningButtonState();
+    });
+
+    return button;
+  }
+
   createTouchControls() {
     this.touchInput = {
       left: false,
@@ -400,7 +449,219 @@ export default class GameScene extends Phaser.Scene {
     });
     this.reelButton.setVisible(false);
 
-    this.touchUI.add([this.dpad, this.castButton, this.reelButton]);
+    this.lightningButton = this.createEmojiActionButton(158, controlCenterY, '⚡', () => {
+      this.activateLightningFreeze();
+    });
+    this.lightningButtonBg = this.lightningButton.bg;
+
+    this.touchUI.add([this.dpad, this.castButton, this.reelButton, this.lightningButton]);
+  }
+
+  clearLightningCooldownTimer() {
+    if (this.lightningCooldownTimer) {
+      this.lightningCooldownTimer.remove(false);
+      this.lightningCooldownTimer = null;
+    }
+  }
+
+  startLightningCooldownTimer() {
+    this.clearLightningCooldownTimer();
+    this.lightningCooldownTimer = this.time.addEvent({
+      delay: 1000,
+      loop: true,
+      callback: () => {
+        this.lightningCooldownLeft -= 1;
+        this.updateLightningButtonState();
+
+        if (this.lightningCooldownLeft <= 0) {
+          this.lightningCooldownLeft = 0;
+          this.clearLightningCooldownTimer();
+        }
+      },
+    });
+  }
+
+  updateLightningButtonState() {
+    if (!this.lightningButton || !this.lightningButtonBg) return;
+
+    const canUse = this.isGameStarted
+      && !this.isGameOver
+      && !this.isQuizActive
+      && this.lightningCooldownLeft <= 0;
+
+    if (canUse) {
+      this.lightningButton.setInteractive({ useHandCursor: true });
+    } else {
+      this.lightningButton.disableInteractive();
+    }
+
+    this.lightningButtonBg.setFillStyle(canUse ? 0xf59f00 : 0x495057, canUse ? 0.92 : 0.72);
+    this.lightningButton.setAlpha(canUse ? 1 : 0.55);
+
+    if (this.lightningCooldownLeft > 0) {
+      this.lightningButton.label.setText(String(this.lightningCooldownLeft));
+      this.lightningButton.label.setFontSize('18px');
+    } else {
+      this.lightningButton.label.setText('⚡');
+      this.lightningButton.label.setFontSize('26px');
+    }
+  }
+
+  activateLightningFreeze() {
+    if (!this.isGameStarted || this.isGameOver || this.isQuizActive) return;
+    if (this.lightningCooldownLeft > 0) return;
+
+    this.creatureFreezeRemaining = LIGHTNING_FREEZE_SECONDS;
+    this.lightningCooldownLeft = LIGHTNING_COOLDOWN_SECONDS;
+    this.startLightningCooldownTimer();
+    this.updateLightningButtonState();
+    this.showMessage('⚡ 바다 생물이 2초간 멈췄어!', 1200);
+    this.showLightningWaterEffect(LIGHTNING_FREEZE_SECONDS);
+  }
+
+  clearLightningWaterEffect() {
+    if (this.lightningEffectFlicker) {
+      this.lightningEffectFlicker.remove(false);
+      this.lightningEffectFlicker = null;
+    }
+
+    if (this.lightningEffectEndTimer) {
+      this.lightningEffectEndTimer.remove(false);
+      this.lightningEffectEndTimer = null;
+    }
+
+    if (this.lightningEffectContainer) {
+      this.lightningEffectContainer.destroy(true);
+      this.lightningEffectContainer = null;
+    }
+  }
+
+  drawLightningBolt(graphics, startX, startY) {
+    const segments = Phaser.Math.Between(4, 6);
+    const verticalSpan = Phaser.Math.Between(56, 110);
+    const horizontalSpread = Phaser.Math.Between(18, 34);
+    let x = startX;
+    let y = startY;
+
+    graphics.clear();
+    graphics.lineStyle(2.5, 0x66d9ef, 0.75);
+    graphics.beginPath();
+    graphics.moveTo(x, y);
+
+    for (let i = 0; i < segments; i += 1) {
+      x += Phaser.Math.Between(-horizontalSpread, horizontalSpread);
+      y += verticalSpan / segments;
+      graphics.lineTo(x, y);
+    }
+    graphics.strokePath();
+
+    graphics.lineStyle(1, 0xffffff, 0.55);
+    graphics.beginPath();
+    graphics.moveTo(startX, startY);
+    x = startX;
+    y = startY;
+    for (let i = 0; i < segments; i += 1) {
+      x += Phaser.Math.Between(-horizontalSpread * 0.6, horizontalSpread * 0.6);
+      y += verticalSpan / segments;
+      graphics.lineTo(x, y);
+    }
+    graphics.strokePath();
+  }
+
+  showLightningWaterEffect(durationSeconds = LIGHTNING_FREEZE_SECONDS) {
+    this.clearLightningWaterEffect();
+
+    const waterHeight = SAND_TOP - WATER_TOP;
+    const container = this.add.container(0, 0).setDepth(LIGHTNING_EFFECT_DEPTH);
+
+    const veil = this.add.rectangle(
+      GAME_WIDTH / 2,
+      WATER_TOP + waterHeight / 2,
+      GAME_WIDTH,
+      waterHeight,
+      0x22b8cf,
+      0.14,
+    );
+    veil.setBlendMode(Phaser.BlendModes.ADD);
+    container.add(veil);
+
+    this.tweens.add({
+      targets: veil,
+      alpha: { from: 0.08, to: 0.24 },
+      duration: 110,
+      yoyo: true,
+      repeat: -1,
+    });
+
+    const flash = this.add.rectangle(
+      GAME_WIDTH / 2,
+      WATER_TOP + waterHeight / 2,
+      GAME_WIDTH,
+      waterHeight,
+      0xffffff,
+      0.28,
+    );
+    flash.setBlendMode(Phaser.BlendModes.ADD);
+    container.add(flash);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 180,
+      ease: 'Quad.easeOut',
+    });
+
+    const bolts = [];
+    for (let i = 0; i < 7; i += 1) {
+      const bolt = this.add.graphics();
+      this.drawLightningBolt(
+        bolt,
+        Phaser.Math.Between(30, GAME_WIDTH - 30),
+        Phaser.Math.Between(WATER_TOP + 16, SAND_TOP - 90),
+      );
+      bolt.setAlpha(Phaser.Math.FloatBetween(0.35, 0.85));
+      container.add(bolt);
+      bolts.push(bolt);
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      const streamY = WATER_TOP + 28 + i * ((waterHeight - 56) / 4);
+      const stream = this.add.rectangle(-80, streamY, Phaser.Math.Between(90, 150), 2, 0x99e9f2, 0.45);
+      stream.setBlendMode(Phaser.BlendModes.ADD);
+      container.add(stream);
+      this.tweens.add({
+        targets: stream,
+        x: GAME_WIDTH + 80,
+        alpha: { from: 0.12, to: 0.65 },
+        duration: Phaser.Math.Between(260, 420),
+        repeat: -1,
+        onRepeat: () => {
+          stream.x = -80;
+          stream.y = streamY + Phaser.Math.Between(-8, 8);
+        },
+      });
+    }
+
+    this.lightningEffectFlicker = this.time.addEvent({
+      delay: 90,
+      loop: true,
+      callback: () => {
+        bolts.forEach((bolt) => {
+          bolt.setAlpha(Phaser.Math.FloatBetween(0.15, 0.95));
+          if (Math.random() < 0.4) {
+            this.drawLightningBolt(
+              bolt,
+              Phaser.Math.Between(20, GAME_WIDTH - 20),
+              Phaser.Math.Between(WATER_TOP + 12, SAND_TOP - 80),
+            );
+          }
+        });
+      },
+    });
+
+    this.lightningEffectContainer = container;
+    this.lightningEffectEndTimer = this.time.delayedCall(durationSeconds * 1000, () => {
+      this.clearLightningWaterEffect();
+    });
   }
 
   updateTouchControlsVisibility() {
@@ -412,6 +673,8 @@ export default class GameScene extends Phaser.Scene {
     this.dpad.setVisible(canPlay && aiming);
     this.castButton.setVisible(canPlay && !this.isCasting && !this.isReeling);
     this.reelButton.setVisible(canPlay && aiming);
+    this.lightningButton?.setVisible(canPlay && this.isGameStarted);
+    this.updateLightningButtonState();
   }
 
   clearTouchInput() {
@@ -1317,6 +1580,15 @@ export default class GameScene extends Phaser.Scene {
     this.catchSound = this.sound.add(GAME_AUDIO.catch.key, {
       volume: GAME_AUDIO.catch.volume,
     });
+    this.quizCorrectSound = this.sound.add(GAME_AUDIO.quizCorrect.key, {
+      volume: GAME_AUDIO.quizCorrect.volume,
+    });
+    this.quizWrongSound = this.sound.add(GAME_AUDIO.quizWrong.key, {
+      volume: GAME_AUDIO.quizWrong.volume,
+    });
+    this.apexSpawnSound = this.sound.add(GAME_AUDIO.apexSpawn.key, {
+      volume: GAME_AUDIO.apexSpawn.volume,
+    });
 
     this.onAudioUnlocked = () => {
       if (this.isGameStarted) {
@@ -1365,6 +1637,28 @@ export default class GameScene extends Phaser.Scene {
   playCatchSound() {
     this.ensureAudioUnlocked();
     this.catchSound.play();
+  }
+
+  playQuizCorrectSound() {
+    this.ensureAudioUnlocked();
+    this.quizWrongSound.stop();
+    this.quizCorrectSound.stop();
+    this.quizCorrectSound.play();
+  }
+
+  playQuizWrongSound() {
+    this.ensureAudioUnlocked();
+    this.quizCorrectSound.stop();
+    this.quizWrongSound.stop();
+    this.quizWrongSound.play();
+  }
+
+  playApexPredatorSpawnSound() {
+    if (!this.apexSpawnSound) return;
+
+    this.ensureAudioUnlocked();
+    this.apexSpawnSound.stop();
+    this.apexSpawnSound.play();
   }
 
   setupTimers() {
@@ -1469,6 +1763,13 @@ export default class GameScene extends Phaser.Scene {
   registerApexPredatorThreat(kind) {
     const wasEmpty = this.apexPredatorThreatCount === 0;
     this.apexPredatorThreatCount += 1;
+
+    if (this.isGameStarted) {
+      this.playApexPredatorSpawnSound();
+    } else {
+      this.pendingApexSpawnSound = true;
+    }
+
     if (wasEmpty) {
       this.showMessage(APEX_PREDATOR_SPAWN_MESSAGES[kind] ?? APEX_PREDATOR_SPAWN_MESSAGES.megalodon, 2800);
       this.setApexPredatorWaterTint(true);
@@ -1729,6 +2030,12 @@ export default class GameScene extends Phaser.Scene {
     const dt = delta / 1000;
     const bobTime = time * 0.001;
 
+    if (this.creatureFreezeRemaining > 0) {
+      this.creatureFreezeRemaining = Math.max(0, this.creatureFreezeRemaining - dt);
+    }
+
+    const creaturesFrozen = this.creatureFreezeRemaining > 0;
+
     if (this.isGameStarted && this.isCasting && !this.isReeling) {
       const speed = HOOK_SPEED * dt;
 
@@ -1757,6 +2064,7 @@ export default class GameScene extends Phaser.Scene {
     this.fishes.getChildren().forEach((fish) => {
       if (!fish.active) return;
       if (fish === this.caughtFish) return;
+      if (creaturesFrozen) return;
 
       if (fish.creatureType.moveStyle === 'zigzag') {
         fish.zigzagTimer += dt;
@@ -1914,7 +2222,9 @@ export default class GameScene extends Phaser.Scene {
       }
     });
 
-    this.applyWobbegongPredation();
+    if (!creaturesFrozen) {
+      this.applyWobbegongPredation();
+    }
   }
 
   finishReel() {
@@ -2031,8 +2341,8 @@ export default class GameScene extends Phaser.Scene {
 
   buildQuizButtons(choices) {
     const positions = [
-      { x: -95, y: 30 },
-      { x: 95, y: 30 },
+      { x: -95, y: 28 },
+      { x: 95, y: 28 },
       { x: -95, y: 78 },
       { x: 95, y: 78 },
     ];
@@ -2080,25 +2390,25 @@ export default class GameScene extends Phaser.Scene {
       this.quizPanel.destroy(true);
     }
 
-    this.quizPanel = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 24);
+    this.quizPanel = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 20);
     this.quizPanel.setDepth(102);
 
-    const panelBg = this.add.rectangle(0, 0, 560, 228, 0x1c314a, 0.95);
+    const panelBg = this.add.rectangle(0, 0, 560, 312, 0x1c314a, 0.95);
     panelBg.setStrokeStyle(3, 0xffd43b);
 
-    const quizTitle = this.add.text(0, -88, '다시 낚시하려면 문제를 풀어요!', {
+    const quizTitle = this.add.text(0, -102, '다시 낚시하려면 문제를 풀어요!', {
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: '20px',
       color: '#ffffff',
     }).setOrigin(0.5);
 
-    this.quizCategoryText = this.add.text(0, -60, '', {
+    this.quizCategoryText = this.add.text(0, -74, '', {
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: '15px',
       color: '#91a7ff',
     }).setOrigin(0.5);
 
-    this.quizText = this.add.text(0, -28, '', {
+    this.quizText = this.add.text(0, -38, '', {
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: '28px',
       color: '#ffd43b',
@@ -2108,9 +2418,9 @@ export default class GameScene extends Phaser.Scene {
       wordWrap: { width: 500 },
     }).setOrigin(0.5);
 
-    this.quizButtonContainer = this.add.container(0, 0);
+    this.quizButtonContainer = this.add.container(0, 10);
 
-    this.quizFeedback = this.add.text(0, 108, '정답을 골라 보세요', {
+    this.quizFeedback = this.add.text(0, 132, '정답을 골라 보세요', {
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: '16px',
       color: '#ced4da',
@@ -2134,6 +2444,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (selected === this.quizQuestion.answer) {
       buttonBg.setFillStyle(0x40c057, 1);
+      this.playQuizCorrectSound();
       this.quizFeedback.setText('정답! 다시 낚시를 시작해요');
       this.quizFeedback.setColor('#69db7c');
       this.isQuizActive = false;
@@ -2146,6 +2457,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     buttonBg.setFillStyle(0xfa5252, 1);
+    this.playQuizWrongSound();
     this.startQuizCooldown();
 
     this.time.delayedCall(500, () => {
@@ -2157,6 +2469,9 @@ export default class GameScene extends Phaser.Scene {
 
   endGame() {
     this.isGameOver = true;
+    this.clearLightningCooldownTimer();
+    this.clearLightningWaterEffect();
+    this.creatureFreezeRemaining = 0;
     if (this.bgm?.isPlaying) {
       this.bgm.stop();
     }
