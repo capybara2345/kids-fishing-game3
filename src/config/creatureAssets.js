@@ -125,6 +125,7 @@ export const CREATURE_TEXTURE_MANIFEST = [
   { kind: 'giantsquid', key: 'creature_squid', file: 'squid.png', status: 'pilot' },
   { kind: 'megalodon', key: 'creature_megalodon', file: 'megalodon.png', status: 'pilot' },
   { kind: 'mosasaurus', key: 'creature_mosasaurus', file: 'mosa.png', status: 'pilot' },
+  { kind: 'electric_ray', key: 'creature_ray', file: 'ray.png', status: 'pilot' },
   { kind: 'seal', key: 'creature_fur_seal', file: 'fur_seal.png', status: 'pilot' },
   { kind: 'leopard_seal', key: 'creature_fur_seal', file: 'fur_seal.png', status: 'pilot' },
   { kind: 'dunkleosteus', key: 'creature_dunkleosteus', file: 'dunkleosteus.png', status: 'pilot' },

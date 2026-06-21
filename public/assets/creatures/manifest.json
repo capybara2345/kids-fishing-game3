@@ -36,6 +36,7 @@
     { "kind": "giantsquid", "key": "creature_squid", "file": "squid.png", "status": "pilot", "note": "tint purple, larger scale" },
     { "kind": "megalodon", "key": "creature_megalodon", "file": "megalodon.png", "status": "pilot", "note": "catchChance 0.1, 300pts, red flash" },
     { "kind": "mosasaurus", "key": "creature_mosasaurus", "file": "mosa.png", "status": "pilot", "note": "catchChance 0.1, 300pts, red flash" },
+    { "kind": "electric_ray", "key": "creature_ray", "file": "ray.png", "status": "pilot", "note": "catchChance 0.1, 300pts, yellow border" },
     { "kind": "seal", "key": "creature_fur_seal", "file": "fur_seal.png", "status": "pilot" },
     { "kind": "leopard_seal", "key": "creature_fur_seal", "file": "fur_seal.png", "status": "pilot", "note": "leopardPattern" },
     { "kind": "dunkleosteus", "key": "creature_dunkleosteus", "file": "dunkleosteus.png", "status": "pilot" },

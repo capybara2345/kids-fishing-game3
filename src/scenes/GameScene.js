@@ -24,10 +24,11 @@ const WATER_GRADIENT_TOP = 0x1864ab;
 const WATER_GRADIENT_BOTTOM = 0x0b7285;
 const MEGALODON_WATER_GRADIENT_TOP = 0x9b1c1c;
 const MEGALODON_WATER_GRADIENT_BOTTOM = 0x5c1010;
-const APEX_PREDATOR_KINDS = new Set(['megalodon', 'mosasaurus']);
+const APEX_PREDATOR_KINDS = new Set(['megalodon', 'mosasaurus', 'electric_ray']);
 const APEX_PREDATOR_SPAWN_MESSAGES = {
   megalodon: '🦈 메갈로돈이 나타났다! 🦈',
   mosasaurus: '🦕 모사사우루스가 나타났다! 🦕',
+  electric_ray: '⚡ 전기가오리가 나타났다! ⚡',
 };
 
 function isApexPredator(kind) {
@@ -91,7 +92,7 @@ const LIGHTNING_FREEZE_SECONDS = 2;
 const LIGHTNING_COOLDOWN_SECONDS = 20;
 const LIGHTNING_EFFECT_DEPTH = 3;
 const MIN_CATCH_SUCCESS_RATE = 0.9;
-/** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'whale_shark' | null) */
+/** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'electric_ray' | 'whale_shark' | null) */
 const TEST_FIRST_CREATURE = null;
 
 function getLineBreakChance(type) {
@@ -147,6 +148,7 @@ const CREATURES = [
   { kind: 'giantsquid', name: '대왕오징어', color: 0x4a148c, points: 95, speed: 85, size: 114, weight: 2, spawnZone: 'deep', moveStyle: 'zigzag', zigzagInterval: 0.65, zigzagVerticalRatio: 0.58, giantTier: true, lineBreakChance: 0.35, ...SQUID_TEXTURE, textureScale: 0.82 },
   { kind: 'megalodon', name: '메갈로돈', color: 0x37474f, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_megalodon', textureScale: 1, textureFacing: 'left' },
   { kind: 'mosasaurus', name: '모사사우루스', color: 0x455a64, points: 300, speed: 165, size: MOSASAURUS_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_mosasaurus', textureScale: 1, textureFacing: 'right' },
+  { kind: 'electric_ray', name: '전기가오리', color: 0xffd43b, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_ray', textureScale: 1, textureFacing: 'left', electricBorder: true },
   { kind: 'seal', name: '물개', color: 0xadb5bd, points: 48, speed: 85, size: 40, weight: 6, spawnZone: 'surface', ...FUR_SEAL_TEXTURE },
   { kind: 'leopard_seal', name: '바다표범', color: 0xf1f3f5, points: 65, speed: 100, size: 44, weight: 4, spawnZone: 'mid', ...FUR_SEAL_TEXTURE, leopardPattern: true },
   { kind: 'dunkleosteus', name: '둔클레오사우루스', color: 0x5d4e37, points: 200, speed: 55, size: DUNKLEOSTEUS_SIZE, weight: 2, spawnZone: 'large', texture: 'creature_dunkleosteus', textureScale: 0.92, textureFacing: 'left' },
@@ -198,7 +200,7 @@ export default class GameScene extends Phaser.Scene {
     this.setupInput();
     this.createStartOverlay();
 
-    if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus') {
+    if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus' || TEST_FIRST_CREATURE === 'electric_ray') {
       this.pendingStartMessage = {
         text: '던지기 버튼으로 낚싯줄을 던지세요!',
         duration: 2200,
@@ -980,6 +982,25 @@ export default class GameScene extends Phaser.Scene {
         return container;
       }
 
+      if (type.electricBorder) {
+        const container = this.add.container(x, y);
+        const border = this.add.graphics();
+        const borderW = sprite.displayWidth * 1.1;
+        const borderH = sprite.displayHeight * 0.78;
+        border.lineStyle(4, 0xffd43b, 1);
+        border.strokeEllipse(0, 0, borderW, borderH);
+        sprite.setFlipX(flipX);
+        if (flipX) {
+          border.setScale(-1, 1);
+        }
+        container.add([border, sprite]);
+        container.creatureSprite = sprite;
+        container.electricBorder = border;
+        container.baseScale = scale;
+        container.usesTexture = true;
+        return container;
+      }
+
       sprite.setPosition(x, y);
       sprite.setFlipX(type.kind === 'flyingfish' ? false : flipX);
       sprite.baseScale = scale;
@@ -1029,6 +1050,14 @@ export default class GameScene extends Phaser.Scene {
     const type = creature.creatureType;
     const sprite = this.getCreatureSprite(creature);
     const facesLeft = type.textureFacing === 'left';
+    const flipX = facesLeft ? direction > 0 : direction < 0;
+
+    if (type.electricBorder && creature.electricBorder) {
+      sprite.setFlipX(flipX);
+      creature.electricBorder.setScale(flipX ? -1 : 1, 1);
+      return;
+    }
+
     sprite.setFlipX(facesLeft ? direction > 0 : direction < 0);
   }
 
@@ -1246,6 +1275,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'ray':
+      case 'electric_ray':
         graphics.fillStyle(type.color, 1);
         graphics.fillEllipse(0, 4, s, s * 0.55);
         graphics.fillTriangle(
@@ -1257,6 +1287,10 @@ export default class GameScene extends Phaser.Scene {
         graphics.lineBetween(0, s * 0.2, direction * s * 0.35, s * 0.55);
         graphics.fillStyle(0xffffff, 1);
         graphics.fillCircle(direction * 12, -2, 3);
+        if (type.kind === 'electric_ray') {
+          graphics.lineStyle(5, 0xffd43b, 1);
+          graphics.strokeEllipse(0, 4, s * 1.08, s * 0.64);
+        }
         break;
 
       case 'shark':
@@ -2120,6 +2154,7 @@ export default class GameScene extends Phaser.Scene {
           break;
         case 'megalodon':
         case 'mosasaurus':
+        case 'electric_ray':
           fish.y += Math.sin(bobTime * 3 + fish.bobOffset) * 14 * dt;
           fish.angle = Math.sin(bobTime * 4 + fish.bobOffset) * 3;
           if (fish.usesTexture) {
