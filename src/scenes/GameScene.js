@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { getTextureKeyForCreature, FUR_SEAL_TEXTURE, NORMAL_FISH_TEXTURE, RAY_TEXTURE, SEAHORSE_TEXTURE, SHRIMP_TEXTURE, SQUID_TEXTURE, TURTLE_TEXTURE } from '../config/creatureAssets.js';
+import { getTextureKeyForCreature, CRAYFISH_TEXTURE, FUR_SEAL_TEXTURE, JELLYFISH_TEXTURE, NORMAL_FISH_TEXTURE, RAY_TEXTURE, SEAHORSE_TEXTURE, SHRIMP_TEXTURE, SQUID_TEXTURE, STARFISH_TEXTURE, TURTLE_TEXTURE } from '../config/creatureAssets.js';
 import { GAME_AUDIO } from '../config/gameAudio.js';
 import { pickRandomQuizQuestion, QUIZ_CATEGORY_LABELS } from '../config/quizQuestions.js';
 
@@ -24,11 +24,11 @@ const WATER_GRADIENT_TOP = 0x1864ab;
 const WATER_GRADIENT_BOTTOM = 0x0b7285;
 const MEGALODON_WATER_GRADIENT_TOP = 0x9b1c1c;
 const MEGALODON_WATER_GRADIENT_BOTTOM = 0x5c1010;
-const APEX_PREDATOR_KINDS = new Set(['megalodon', 'mosasaurus', 'electric_ray']);
+const APEX_PREDATOR_KINDS = new Set(['megalodon', 'mosasaurus', 'electric_eel']);
 const APEX_PREDATOR_SPAWN_MESSAGES = {
   megalodon: '🦈 메갈로돈이 나타났다! 🦈',
   mosasaurus: '🦕 모사사우루스가 나타났다! 🦕',
-  electric_ray: '⚡ 전기가오리가 나타났다! ⚡',
+  electric_eel: '⚡ 전기뱀장어가 나타났다! ⚡',
 };
 
 function isApexPredator(kind) {
@@ -92,7 +92,7 @@ const LIGHTNING_FREEZE_SECONDS = 2;
 const LIGHTNING_COOLDOWN_SECONDS = 20;
 const LIGHTNING_EFFECT_DEPTH = 3;
 const MIN_CATCH_SUCCESS_RATE = 0.9;
-/** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'electric_ray' | 'whale_shark' | null) */
+/** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'electric_eel' | 'whale_shark' | null) */
 const TEST_FIRST_CREATURE = null;
 
 function getLineBreakChance(type) {
@@ -125,32 +125,34 @@ const CREATURES = [
   { kind: 'fish', name: '잉어', color: 0xff6b6b, points: 20, speed: 100, size: 34, weight: 16, ...NORMAL_FISH_TEXTURE },
   { kind: 'fish', name: '송어', color: 0x69db7c, points: 35, speed: 130, size: 30, weight: 14, ...NORMAL_FISH_TEXTURE },
   { kind: 'fish', name: '참치', color: 0x4dabf7, points: 50, speed: 160, size: 42, weight: 10, ...NORMAL_FISH_TEXTURE },
-  { kind: 'jellyfish', name: '해파리', color: 0xda77f2, points: 25, speed: 55, size: 34, weight: 9 },
+  { kind: 'jellyfish', name: '해파리', color: 0xda77f2, points: 25, speed: 55, size: 34, weight: 9, ...JELLYFISH_TEXTURE },
   { kind: 'octopus', name: '문어', color: 0x845ef7, points: 45, speed: 70, size: 64, weight: 6, moveStyle: 'diagonal', texture: 'creature_octopus', textureScale: 0.86, textureFacing: 'left' },
   { kind: 'squid', name: '오징어', color: 0xffffff, points: 38, speed: 110, size: 40, weight: 8, moveStyle: 'zigzag', zigzagInterval: 0.48, zigzagVerticalRatio: 0.68, ...SQUID_TEXTURE },
   { kind: 'seahorse', name: '해마', color: 0xff922b, points: 30, speed: 65, size: 34, weight: 8, ...SEAHORSE_TEXTURE },
   { kind: 'turtle', name: '거북이', color: 0x40c057, points: 60, speed: 38, size: 44, weight: 8, ...TURTLE_TEXTURE, fleeFromHook: true, fleeRadius: 130, fleeSpeedMultiplier: 1.8 },
   { kind: 'eel', name: '바다장어', color: 0x343a40, points: 40, speed: 95, size: 104, weight: 7, texture: 'creature_eel', textureScale: 0.85, textureFacing: 'left' },
   { kind: 'crab', name: '게', color: 0xfa5252, points: 22, speed: 75, size: 50, weight: 11, spawnZone: 'bottom', moveStyle: 'sand', texture: 'creature_crab', textureScale: 0.92, textureFacing: 'left' },
-  { kind: 'crayfish', name: '가재', color: 0xb01e1e, points: 28, speed: 65, size: 34, weight: 9, spawnZone: 'bottom', moveStyle: 'sand', sandYOffset: -15 },
+  { kind: 'crayfish', name: '가재', color: 0xb01e1e, points: 28, speed: 65, size: 34, weight: 9, spawnZone: 'bottom', moveStyle: 'sand', sandYOffset: -15, ...CRAYFISH_TEXTURE },
   { kind: 'dolphin', name: '돌고래', color: 0x339af0, points: 42, speed: 120, size: 72, weight: 7, moveStyle: 'diagonal', texture: 'creature_dolphin', textureScale: 0.88, textureFacing: 'left' },
   { kind: 'flyingfish', name: '날치', color: 0x91a7ff, points: 32, speed: 140, size: 64, weight: 8, moveStyle: 'diagonal', texture: 'creature_flyingfish', textureScale: 0.9, textureFacing: 'left' },
-  { kind: 'starfish', name: '불가사리', color: 0xff6b6b, points: 18, speed: 35, size: 28, weight: 10 },
+  { kind: 'starfish', name: '불가사리', color: 0xff6b6b, points: 18, speed: 35, size: 28, weight: 10, ...STARFISH_TEXTURE },
   { kind: 'shrimp', name: '새우', color: 0xff8787, points: 15, speed: 145, size: 22, weight: 12, ...SHRIMP_TEXTURE },
   { kind: 'ray', name: '가오리', color: 0x748ffc, points: 55, speed: 75, size: 48, weight: 5, ...RAY_TEXTURE },
   { kind: 'shark', name: '상어', color: 0x5c6773, points: 80, speed: 125, size: 136, weight: 2, texture: 'creature_shark', textureFacing: 'left' },
   { kind: 'wobbegong', name: '돌묵상어', color: 0x8d6e63, points: 70, speed: 65, size: 116, weight: 3, spawnZone: 'bottom', texture: 'creature_wobbegong', textureScale: 0.82, textureFacing: 'left' },
   { kind: 'sawshark', name: '톱상어', color: 0x78909c, points: 75, speed: 70, size: 200, weight: 3, spawnZone: 'mid', texture: 'creature_sawfish', textureScale: 0.82, textureFacing: 'left' },
+  { kind: 'beluga', name: '벨루가', color: 0xe9ecef, points: 80, speed: 75, size: 200, weight: 3, spawnZone: 'large', texture: 'creature_beluga', textureScale: 0.82, textureFacing: 'left' },
   { kind: 'makoshark', name: '청상아리', color: 0x78909c, points: 75, speed: 70, size: 124, weight: 3, spawnZone: 'mid', texture: 'creature_makoshark', textureScale: 0.78, textureFacing: 'left' },
   { kind: 'hammerhead', name: '귀상어', color: 0x607d8b, points: 85, speed: 115, size: 128, weight: 2, spawnZone: 'mid', texture: 'creature_hammerhead', textureScale: 0.82, textureFacing: 'left' },
   { kind: 'orca', name: '범고래', color: 0x212529, points: 90, speed: 130, size: 144, weight: 2, spawnZone: 'large', texture: 'creature_killer_whale', textureScale: 0.88, textureFacing: 'left' },
   { kind: 'manta', name: '만타가오리', color: 0x546e7a, points: 88, speed: 60, size: 144, weight: 2, spawnZone: 'large', ...RAY_TEXTURE, useTint: true },
   { kind: 'giantsquid', name: '대왕오징어', color: 0x4a148c, points: 95, speed: 85, size: 114, weight: 2, spawnZone: 'deep', moveStyle: 'zigzag', zigzagInterval: 0.65, zigzagVerticalRatio: 0.58, giantTier: true, lineBreakChance: 0.35, ...SQUID_TEXTURE, textureScale: 0.82 },
+  { kind: 'lantern_anglerfish', name: '초롱아귀', color: 0x8d5524, points: 78, speed: 48, size: 76, weight: 4, spawnZone: 'deep', texture: 'creature_lantern_anglerfish', textureScale: 0.88, textureFacing: 'left' },
   { kind: 'megalodon', name: '메갈로돈', color: 0x37474f, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_megalodon', textureScale: 1, textureFacing: 'left' },
   { kind: 'mosasaurus', name: '모사사우루스', color: 0x455a64, points: 300, speed: 165, size: MOSASAURUS_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_mosasaurus', textureScale: 1, textureFacing: 'right' },
-  { kind: 'electric_ray', name: '전기가오리', color: 0xffd43b, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_ray', textureScale: 1, textureFacing: 'left', electricBorder: true },
+  { kind: 'electric_eel', name: '전기뱀장어', color: 0xffd43b, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_electric_eel', textureScale: 1, textureFacing: 'left', electricEffect: true },
   { kind: 'seal', name: '물개', color: 0xadb5bd, points: 48, speed: 85, size: 40, weight: 6, spawnZone: 'surface', ...FUR_SEAL_TEXTURE },
-  { kind: 'leopard_seal', name: '바다표범', color: 0xf1f3f5, points: 65, speed: 100, size: 44, weight: 4, spawnZone: 'mid', ...FUR_SEAL_TEXTURE, leopardPattern: true },
+  { kind: 'leopard_seal', name: '바다표범', color: 0xf1f3f5, points: 65, speed: 100, size: 44, weight: 4, spawnZone: 'mid', ...FUR_SEAL_TEXTURE, textureScale: 0.9 },
   { kind: 'dunkleosteus', name: '둔클레오사우루스', color: 0x5d4e37, points: 200, speed: 55, size: DUNKLEOSTEUS_SIZE, weight: 2, spawnZone: 'large', texture: 'creature_dunkleosteus', textureScale: 0.92, textureFacing: 'left' },
   { kind: 'horseshoe_crab', name: '투구게', color: 0x6d4c41, points: 35, speed: 50, size: 44, weight: 7, spawnZone: 'bottom', texture: 'creature_horseshoe', textureScale: 0.88, textureFacing: 'left' },
   { kind: 'pufferfish', name: '복어', color: 0xffe066, points: 35, speed: 70, size: 60, weight: 8, spawnZone: 'mid', texture: 'creature_blowfish', textureScale: 0.88, textureFacing: 'left' },
@@ -200,7 +202,7 @@ export default class GameScene extends Phaser.Scene {
     this.setupInput();
     this.createStartOverlay();
 
-    if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus' || TEST_FIRST_CREATURE === 'electric_ray') {
+    if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus' || TEST_FIRST_CREATURE === 'electric_eel') {
       this.pendingStartMessage = {
         text: '던지기 버튼으로 낚싯줄을 던지세요!',
         duration: 2200,
@@ -959,43 +961,19 @@ export default class GameScene extends Phaser.Scene {
         sprite.setTint(type.color);
       }
 
-      if (type.leopardPattern) {
-        try {
-          if (sprite.preFX) {
-            const matrix = sprite.preFX.addColorMatrix();
-            matrix.brightness(1.35, false);
-            matrix.saturate(-0.3, true);
-          }
-        } catch (error) {
-          console.warn('[GameScene] leopard seal color effect skipped:', error);
-        }
-
+      if (type.electricEffect) {
         const container = this.add.container(x, y);
-        const spots = this.add.graphics();
-        this.drawLeopardSealSpots(spots, sprite.displayWidth, sprite.displayHeight);
-        sprite.setFlipX(flipX);
-        spots.setScale(flipX ? -1 : 1, 1);
-        container.add([sprite, spots]);
-        container.creatureSprite = sprite;
-        container.baseScale = scale;
-        container.usesTexture = true;
-        return container;
-      }
-
-      if (type.electricBorder) {
-        const container = this.add.container(x, y);
-        const border = this.add.graphics();
-        const borderW = sprite.displayWidth * 1.1;
-        const borderH = sprite.displayHeight * 0.78;
-        border.lineStyle(4, 0xffd43b, 1);
-        border.strokeEllipse(0, 0, borderW, borderH);
+        const aura = this.add.graphics();
+        aura.setBlendMode(Phaser.BlendModes.ADD);
+        this.drawElectricCreatureAura(aura, sprite.displayWidth, sprite.displayHeight, 0);
         sprite.setFlipX(flipX);
         if (flipX) {
-          border.setScale(-1, 1);
+          aura.setScale(-1, 1);
         }
-        container.add([border, sprite]);
+        container.add([aura, sprite]);
         container.creatureSprite = sprite;
-        container.electricBorder = border;
+        container.electricAura = aura;
+        container.electricPhase = Math.random() * Math.PI * 2;
         container.baseScale = scale;
         container.usesTexture = true;
         return container;
@@ -1015,28 +993,55 @@ export default class GameScene extends Phaser.Scene {
     return graphics;
   }
 
-  drawLeopardSealSpots(graphics, bodyWidth, bodyHeight) {
-    graphics.clear();
-    const spots = [
-      { x: -0.2, y: -0.18, rx: 0.045, ry: 0.038 },
-      { x: -0.08, y: -0.14, rx: 0.052, ry: 0.042 },
-      { x: 0.05, y: -0.16, rx: 0.04, ry: 0.034 },
-      { x: 0.16, y: -0.1, rx: 0.038, ry: 0.032 },
-      { x: -0.14, y: -0.02, rx: 0.048, ry: 0.04 },
-      { x: 0.02, y: -0.03, rx: 0.044, ry: 0.036 },
-      { x: 0.12, y: 0.02, rx: 0.036, ry: 0.03 },
-      { x: -0.22, y: 0.04, rx: 0.04, ry: 0.034 },
-      { x: -0.04, y: 0.06, rx: 0.035, ry: 0.028 },
-    ];
+  drawMiniElectricBolt(graphics, startX, startY, height) {
+    const segments = 4;
+    let x = startX;
+    let y = startY;
+    graphics.beginPath();
+    graphics.moveTo(x, y);
+    for (let i = 0; i < segments; i += 1) {
+      x += Phaser.Math.Between(-5, 5);
+      y += height / segments;
+      graphics.lineTo(x, y);
+    }
+    graphics.strokePath();
+  }
 
-    for (const spot of spots) {
-      graphics.fillStyle(0x343a40, 0.9);
-      graphics.fillEllipse(
-        spot.x * bodyWidth,
-        spot.y * bodyHeight,
-        spot.rx * bodyWidth,
-        spot.ry * bodyHeight,
-      );
+  drawElectricCreatureAura(graphics, bodyWidth, bodyHeight, phase) {
+    graphics.clear();
+    const pulse = 0.45 + Math.sin(phase * 4) * 0.25;
+
+    graphics.lineStyle(3, 0x74c0fc, pulse * 0.35);
+    graphics.strokeEllipse(0, 0, bodyWidth * 1.04, bodyHeight * 0.66);
+
+    const arcCount = 6;
+    for (let i = 0; i < arcCount; i += 1) {
+      const t = i / (arcCount - 1);
+      const cx = (t - 0.5) * bodyWidth * 0.88;
+      const cy = Math.sin(phase * 3 + i * 1.4) * bodyHeight * 0.24;
+      const boltHeight = bodyHeight * (0.35 + Math.sin(phase * 5 + i) * 0.08);
+
+      graphics.lineStyle(2, 0x66d9ef, pulse * 0.85);
+      this.drawMiniElectricBolt(graphics, cx, cy - boltHeight * 0.45, boltHeight);
+
+      if (i % 2 === 0) {
+        graphics.lineStyle(1.2, 0xffffff, pulse * 0.55);
+        graphics.beginPath();
+        graphics.moveTo(cx - bodyWidth * 0.1, cy);
+        let x = cx - bodyWidth * 0.1;
+        for (let s = 0; s < 5; s += 1) {
+          x += bodyWidth * 0.045;
+          graphics.lineTo(x, cy + Math.sin(phase * 6 + s + i) * bodyHeight * 0.16);
+        }
+        graphics.strokePath();
+      }
+    }
+
+    graphics.lineStyle(1.5, 0xffd43b, pulse * 0.6);
+    for (let i = 0; i < 4; i += 1) {
+      const sparkX = Math.sin(phase * 2.2 + i * 1.8) * bodyWidth * 0.34;
+      const sparkY = Math.cos(phase * 2.8 + i * 1.3) * bodyHeight * 0.2;
+      graphics.strokeCircle(sparkX, sparkY, bodyHeight * 0.07 + Math.sin(phase + i) * 2);
     }
   }
 
@@ -1052,9 +1057,9 @@ export default class GameScene extends Phaser.Scene {
     const facesLeft = type.textureFacing === 'left';
     const flipX = facesLeft ? direction > 0 : direction < 0;
 
-    if (type.electricBorder && creature.electricBorder) {
+    if (type.electricEffect && creature.electricAura) {
       sprite.setFlipX(flipX);
-      creature.electricBorder.setScale(flipX ? -1 : 1, 1);
+      creature.electricAura.setScale(flipX ? -1 : 1, 1);
       return;
     }
 
@@ -1140,6 +1145,29 @@ export default class GameScene extends Phaser.Scene {
         graphics.fillCircle(-6, -10, 4);
         break;
 
+      case 'lantern_anglerfish':
+        graphics.fillStyle(type.color, 1);
+        graphics.fillEllipse(0, 4, s * 0.72, s * 0.46);
+        graphics.fillStyle(0xff8787, 1);
+        graphics.fillEllipse(direction * s * 0.18, 8, s * 0.22, s * 0.14);
+        graphics.fillStyle(0xffffff, 1);
+        for (let i = -2; i <= 2; i += 1) {
+          graphics.fillTriangle(
+            direction * s * 0.08 + i * 4, 2,
+            direction * s * 0.04 + i * 4, 10,
+            direction * s * 0.12 + i * 4, 10,
+          );
+        }
+        graphics.lineStyle(2, 0x343a40, 1);
+        graphics.lineBetween(-direction * s * 0.12, -s * 0.12, -direction * s * 0.24, -s * 0.24);
+        graphics.fillStyle(0xffd43b, 1);
+        graphics.fillCircle(-direction * s * 0.26, -s * 0.26, s * 0.09);
+        graphics.fillStyle(0xffffff, 1);
+        graphics.fillCircle(direction * s * 0.28, -2, 4);
+        graphics.fillStyle(0x000000, 1);
+        graphics.fillCircle(direction * s * 0.29, -2, 2);
+        break;
+
       case 'octopus':
         graphics.fillStyle(type.color, 1);
         graphics.fillCircle(0, -4, s * 0.38);
@@ -1212,13 +1240,18 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'dolphin':
+      case 'beluga':
         graphics.fillStyle(type.color, 1);
         graphics.fillEllipse(0, 0, s * 0.88, s * 0.34);
-        graphics.fillTriangle(
-          direction * s * 0.08, -s * 0.12,
-          direction * s * 0.22, -s * 0.34,
-          direction * s * 0.28, -s * 0.04
-        );
+        if (type.kind === 'dolphin') {
+          graphics.fillTriangle(
+            direction * s * 0.08, -s * 0.12,
+            direction * s * 0.22, -s * 0.34,
+            direction * s * 0.28, -s * 0.04
+          );
+        } else {
+          graphics.fillEllipse(-direction * s * 0.05, -s * 0.12, s * 0.42, s * 0.28);
+        }
         graphics.fillEllipse(direction * s * 0.44, 2, s * 0.24, s * 0.13);
         graphics.fillStyle(0xe7f5ff, 0.85);
         graphics.fillEllipse(-direction * s * 0.05, 5, s * 0.52, s * 0.12);
@@ -1275,7 +1308,6 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'ray':
-      case 'electric_ray':
         graphics.fillStyle(type.color, 1);
         graphics.fillEllipse(0, 4, s, s * 0.55);
         graphics.fillTriangle(
@@ -1287,10 +1319,6 @@ export default class GameScene extends Phaser.Scene {
         graphics.lineBetween(0, s * 0.2, direction * s * 0.35, s * 0.55);
         graphics.fillStyle(0xffffff, 1);
         graphics.fillCircle(direction * 12, -2, 3);
-        if (type.kind === 'electric_ray') {
-          graphics.lineStyle(5, 0xffd43b, 1);
-          graphics.strokeEllipse(0, 4, s * 1.08, s * 0.64);
-        }
         break;
 
       case 'shark':
@@ -1315,6 +1343,7 @@ export default class GameScene extends Phaser.Scene {
         }
         break;
 
+      case 'electric_eel':
       case 'eel':
         graphics.lineStyle(s * 0.16, type.color, 1);
         graphics.beginPath();
@@ -1335,6 +1364,15 @@ export default class GameScene extends Phaser.Scene {
         graphics.fillCircle(direction * s * 0.51, -2, 1.5);
         graphics.fillStyle(0x868e96, 0.8);
         graphics.fillCircle(-direction * s * 0.42, Math.sin(0.5 * Math.PI * 1.6) * s * 0.14, s * 0.06);
+        if (type.kind === 'electric_eel') {
+          graphics.lineStyle(2, 0x66d9ef, 0.85);
+          for (let i = 0; i < 5; i += 1) {
+            const cx = (i / 4 - 0.5) * s * 0.85;
+            this.drawMiniElectricBolt(graphics, cx, -s * 0.08, s * 0.18);
+          }
+          graphics.lineStyle(1.5, 0xffd43b, 0.65);
+          graphics.strokeCircle(0, 0, s * 0.22);
+        }
         break;
 
       case 'squid':
@@ -2131,6 +2169,10 @@ export default class GameScene extends Phaser.Scene {
         case 'jellyfish':
           fish.y += Math.sin(bobTime * 2 + fish.bobOffset) * 35 * dt;
           break;
+        case 'lantern_anglerfish':
+          fish.y += Math.sin(bobTime * 1.6 + fish.bobOffset) * 16 * dt;
+          fish.angle = Math.sin(bobTime * 2.2 + fish.bobOffset) * 3;
+          break;
         case 'seahorse':
           fish.y += Math.sin(bobTime * 3 + fish.bobOffset) * 20 * dt;
           break;
@@ -2154,12 +2196,21 @@ export default class GameScene extends Phaser.Scene {
           break;
         case 'megalodon':
         case 'mosasaurus':
-        case 'electric_ray':
+        case 'electric_eel':
           fish.y += Math.sin(bobTime * 3 + fish.bobOffset) * 14 * dt;
           fish.angle = Math.sin(bobTime * 4 + fish.bobOffset) * 3;
           if (fish.usesTexture) {
-            const redPulse = Math.sin(bobTime * 14 + fish.bobOffset);
             const apexSprite = this.getCreatureSprite(fish);
+            if (fish.creatureType.kind === 'electric_eel' && fish.electricAura) {
+              fish.electricPhase = (fish.electricPhase ?? 0) + dt * 9;
+              this.drawElectricCreatureAura(
+                fish.electricAura,
+                apexSprite.displayWidth,
+                apexSprite.displayHeight,
+                fish.electricPhase,
+              );
+            }
+            const redPulse = Math.sin(bobTime * 14 + fish.bobOffset);
             if (redPulse > 0.45) {
               apexSprite.setTint(0xff3333);
             } else {
@@ -2205,6 +2256,13 @@ export default class GameScene extends Phaser.Scene {
           break;
         case 'starfish':
           fish.angle = Math.sin(bobTime * 1.5 + fish.bobOffset) * 4;
+          break;
+        case 'beluga':
+          fish.y += Math.sin(bobTime * 2.5 + fish.bobOffset) * 12 * dt;
+          fish.angle = 0;
+          if (fish.usesTexture) {
+            this.getCreatureSprite(fish).setFlipX(fish.vx > 0);
+          }
           break;
         case 'dolphin':
           fish.angle = Phaser.Math.RadToDeg(Math.atan2(fish.vy, fish.vx)) * 0.75
