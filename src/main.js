@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene.js';
 import GameScene from './scenes/GameScene.js';
+import { initFullscreenToggle } from './fullscreen.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -22,3 +23,4 @@ const config = {
 };
 
 new Phaser.Game(config);
+initFullscreenToggle();

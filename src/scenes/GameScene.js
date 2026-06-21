@@ -5,6 +5,7 @@ import { pickRandomQuizQuestion, QUIZ_CATEGORY_LABELS } from '../config/quizQues
 const GAME_WIDTH = 844;
 const WHALE_SHARK_SIZE = Math.round(GAME_WIDTH / 3);
 const MEGALODON_SIZE = Math.round(WHALE_SHARK_SIZE * 0.86);
+const MOSASAURUS_SIZE = MEGALODON_SIZE;
 const DUNKLEOSTEUS_SIZE = Math.round(WHALE_SHARK_SIZE * 0.9);
 const GAME_HEIGHT = 390;
 const GAME_DURATION = 60;
@@ -22,7 +23,15 @@ const WATER_GRADIENT_TOP = 0x1864ab;
 const WATER_GRADIENT_BOTTOM = 0x0b7285;
 const MEGALODON_WATER_GRADIENT_TOP = 0x9b1c1c;
 const MEGALODON_WATER_GRADIENT_BOTTOM = 0x5c1010;
-const MEGALODON_SPAWN_MESSAGE = '🦈 메갈로돈이 나타났다! 🦈';
+const APEX_PREDATOR_KINDS = new Set(['megalodon', 'mosasaurus']);
+const APEX_PREDATOR_SPAWN_MESSAGES = {
+  megalodon: '🦈 메갈로돈이 나타났다! 🦈',
+  mosasaurus: '🦕 모사사우루스가 나타났다! 🦕',
+};
+
+function isApexPredator(kind) {
+  return APEX_PREDATOR_KINDS.has(kind);
+}
 
 function lerpWaterColor(fromColor, toColor, t) {
   const from = Phaser.Display.Color.IntegerToColor(fromColor);
@@ -78,7 +87,7 @@ const INK_SPLASH_KINDS = new Set(['octopus', 'squid', 'giantsquid']);
 const INK_SPLASH_DEPTH = 40;
 const QUIZ_COOLDOWN_SECONDS = 20;
 const MIN_CATCH_SUCCESS_RATE = 0.9;
-/** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'whale_shark' | null) */
+/** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'whale_shark' | null) */
 const TEST_FIRST_CREATURE = null;
 
 function getLineBreakChance(type) {
@@ -133,6 +142,7 @@ const CREATURES = [
   { kind: 'manta', name: '만타가오리', color: 0x546e7a, points: 88, speed: 60, size: 144, weight: 2, spawnZone: 'large', ...RAY_TEXTURE, useTint: true },
   { kind: 'giantsquid', name: '대왕오징어', color: 0x4a148c, points: 95, speed: 85, size: 114, weight: 2, spawnZone: 'deep', moveStyle: 'zigzag', zigzagInterval: 0.65, zigzagVerticalRatio: 0.58, giantTier: true, lineBreakChance: 0.35, ...SQUID_TEXTURE, textureScale: 0.82 },
   { kind: 'megalodon', name: '메갈로돈', color: 0x37474f, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_megalodon', textureScale: 1, textureFacing: 'left' },
+  { kind: 'mosasaurus', name: '모사사우루스', color: 0x455a64, points: 300, speed: 165, size: MOSASAURUS_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_mosasaurus', textureScale: 1, textureFacing: 'right' },
   { kind: 'seal', name: '물개', color: 0xadb5bd, points: 48, speed: 85, size: 40, weight: 6, spawnZone: 'surface', ...FUR_SEAL_TEXTURE },
   { kind: 'leopard_seal', name: '바다표범', color: 0xf1f3f5, points: 65, speed: 100, size: 44, weight: 4, spawnZone: 'mid', ...FUR_SEAL_TEXTURE, leopardPattern: true },
   { kind: 'dunkleosteus', name: '둔클레오사우루스', color: 0x5d4e37, points: 200, speed: 55, size: DUNKLEOSTEUS_SIZE, weight: 2, spawnZone: 'large', texture: 'creature_dunkleosteus', textureScale: 0.92, textureFacing: 'left' },
@@ -161,9 +171,9 @@ export default class GameScene extends Phaser.Scene {
     this.quizCooldownLeft = 0;
     this.quizCooldownTimer = null;
     this.hookDepth = 0;
-    this.megalodonThreatCount = 0;
-    this.megalodonWaterTween = null;
-    this.megalodonWaterBlend = 0;
+    this.apexPredatorThreatCount = 0;
+    this.apexPredatorWaterTween = null;
+    this.apexPredatorWaterBlend = 0;
 
     this.createBackground();
     this.createDock();
@@ -176,7 +186,7 @@ export default class GameScene extends Phaser.Scene {
     this.setupInput();
     this.setupTimers();
 
-    if (TEST_FIRST_CREATURE === 'megalodon') {
+    if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus') {
       this.time.delayedCall(3200, () => {
         if (!this.isGameOver) {
           this.showMessage('던지기 버튼으로 낚싯줄을 던지세요!', 2200);
@@ -434,13 +444,15 @@ export default class GameScene extends Phaser.Scene {
       strokeThickness: 3,
     });
 
-    this.timerText = this.add.text(GAME_WIDTH - 12, 10, `시간: ${GAME_DURATION}`, {
+    this.timerText = this.add.text(0, 10, `시간: ${GAME_DURATION}`, {
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: '18px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3,
-    }).setOrigin(1, 0);
+    });
+
+    this.layoutHudTexts();
 
     this.messageText = this.add.text(GAME_WIDTH / 2, 52, '', {
       fontFamily: 'Segoe UI, sans-serif',
@@ -458,6 +470,11 @@ export default class GameScene extends Phaser.Scene {
       stroke: '#000000',
       strokeThickness: 2,
     }).setOrigin(0.5, 1);
+  }
+
+  layoutHudTexts() {
+    this.timerText.setX(this.scoreText.x + this.scoreText.width + 20);
+    this.timerText.setY(this.scoreText.y);
   }
 
   createFishGroup() {
@@ -1046,6 +1063,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'megalodon':
+      case 'mosasaurus':
         graphics.fillStyle(0xb0bec5, 1);
         graphics.fillEllipse(-direction * 4, 6, s * 0.62, s * 0.34);
         graphics.fillStyle(type.color, 1);
@@ -1196,6 +1214,7 @@ export default class GameScene extends Phaser.Scene {
       callback: () => {
         this.timeLeft -= 1;
         this.timerText.setText(`시간: ${this.timeLeft}`);
+        this.layoutHudTexts();
 
         if (this.timeLeft <= 0) {
           this.endGame();
@@ -1280,27 +1299,28 @@ export default class GameScene extends Phaser.Scene {
 
     this.applyCreatureSpawnMotion(creature, type, vx, vy);
 
-    if (type.kind === 'megalodon') {
-      this.registerMegalodonThreat();
+    if (isApexPredator(type.kind)) {
+      this.registerApexPredatorThreat(type.kind);
     }
 
     this.fishes.add(creature);
   }
 
-  registerMegalodonThreat() {
-    this.megalodonThreatCount += 1;
-    if (this.megalodonThreatCount === 1) {
-      this.showMessage(MEGALODON_SPAWN_MESSAGE, 2800);
-      this.setMegalodonWaterTint(true);
+  registerApexPredatorThreat(kind) {
+    const wasEmpty = this.apexPredatorThreatCount === 0;
+    this.apexPredatorThreatCount += 1;
+    if (wasEmpty) {
+      this.showMessage(APEX_PREDATOR_SPAWN_MESSAGES[kind] ?? APEX_PREDATOR_SPAWN_MESSAGES.megalodon, 2800);
+      this.setApexPredatorWaterTint(true);
     }
   }
 
-  unregisterMegalodonThreat() {
-    if (this.megalodonThreatCount <= 0) return;
+  unregisterApexPredatorThreat() {
+    if (this.apexPredatorThreatCount <= 0) return;
 
-    this.megalodonThreatCount -= 1;
-    if (this.megalodonThreatCount === 0) {
-      this.setMegalodonWaterTint(false);
+    this.apexPredatorThreatCount -= 1;
+    if (this.apexPredatorThreatCount === 0) {
+      this.setApexPredatorWaterTint(false);
     }
   }
 
@@ -1312,37 +1332,37 @@ export default class GameScene extends Phaser.Scene {
     this.waterGraphics.fillRect(0, WATER_TOP, GAME_WIDTH, SAND_TOP - WATER_TOP);
   }
 
-  setMegalodonWaterTint(active) {
+  setApexPredatorWaterTint(active) {
     if (!this.waterGraphics) return;
 
-    if (this.megalodonWaterTween) {
-      this.megalodonWaterTween.stop();
-      this.megalodonWaterTween = null;
+    if (this.apexPredatorWaterTween) {
+      this.apexPredatorWaterTween.stop();
+      this.apexPredatorWaterTween = null;
     }
 
-    const blendState = { blend: this.megalodonWaterBlend ?? 0 };
+    const blendState = { blend: this.apexPredatorWaterBlend ?? 0 };
     const targetBlend = active ? 1 : 0;
 
-    this.megalodonWaterTween = this.tweens.add({
+    this.apexPredatorWaterTween = this.tweens.add({
       targets: blendState,
       blend: targetBlend,
       duration: active ? 650 : 900,
       ease: active ? 'Sine.easeIn' : 'Sine.easeOut',
       onUpdate: () => {
-        this.megalodonWaterBlend = blendState.blend;
+        this.apexPredatorWaterBlend = blendState.blend;
         const top = lerpWaterColor(WATER_GRADIENT_TOP, MEGALODON_WATER_GRADIENT_TOP, blendState.blend);
         const bottom = lerpWaterColor(WATER_GRADIENT_BOTTOM, MEGALODON_WATER_GRADIENT_BOTTOM, blendState.blend);
         this.paintWaterGradient(top, bottom);
       },
       onComplete: () => {
-        this.megalodonWaterBlend = targetBlend;
+        this.apexPredatorWaterBlend = targetBlend;
       },
     });
   }
 
   removeCreature(creature) {
-    if (creature?.creatureType?.kind === 'megalodon') {
-      this.unregisterMegalodonThreat();
+    if (isApexPredator(creature?.creatureType?.kind)) {
+      this.unregisterApexPredatorThreat();
     }
     creature.destroy();
   }
@@ -1630,15 +1650,16 @@ export default class GameScene extends Phaser.Scene {
           fish.angle = Math.sin(bobTime * 3 + fish.bobOffset) * 2;
           break;
         case 'megalodon':
+        case 'mosasaurus':
           fish.y += Math.sin(bobTime * 3 + fish.bobOffset) * 14 * dt;
           fish.angle = Math.sin(bobTime * 4 + fish.bobOffset) * 3;
           if (fish.usesTexture) {
             const redPulse = Math.sin(bobTime * 14 + fish.bobOffset);
-            const megalodonSprite = this.getCreatureSprite(fish);
+            const apexSprite = this.getCreatureSprite(fish);
             if (redPulse > 0.45) {
-              megalodonSprite.setTint(0xff3333);
+              apexSprite.setTint(0xff3333);
             } else {
-              megalodonSprite.clearTint();
+              apexSprite.clearTint();
             }
           }
           break;
@@ -1739,6 +1760,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.caughtFish) {
       this.score += this.caughtFish.creatureType.points;
       this.scoreText.setText(`점수: ${this.score}`);
+      this.layoutHudTexts();
       this.removeCreature(this.caughtFish);
       this.caughtFish = null;
     }
@@ -1976,8 +1998,8 @@ export default class GameScene extends Phaser.Scene {
     this.isGameOver = true;
     this.isCasting = false;
     this.isReeling = false;
-    this.megalodonThreatCount = 0;
-    this.setMegalodonWaterTint(false);
+    this.apexPredatorThreatCount = 0;
+    this.setApexPredatorWaterTint(false);
     this.clearTouchInput();
     this.updateTouchControlsVisibility();
     this.gameTimer.remove(false);
