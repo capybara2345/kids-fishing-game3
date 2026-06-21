@@ -36,6 +36,17 @@ function isApexPredator(kind) {
   return APEX_PREDATOR_KINDS.has(kind);
 }
 
+function maybeCreateGoldVariant(type) {
+  if (Math.random() >= GOLD_VARIANT_CHANCE) return type;
+
+  return {
+    ...type,
+    isGoldVariant: true,
+    points: type.points + GOLD_VARIANT_BONUS_POINTS,
+    name: `황금 ${type.name}`,
+  };
+}
+
 function lerpWaterColor(fromColor, toColor, t) {
   const from = Phaser.Display.Color.IntegerToColor(fromColor);
   const to = Phaser.Display.Color.IntegerToColor(toColor);
@@ -82,7 +93,8 @@ const ROD_BASE_Y_OFFSET = 6 + ROD_OFFSET_Y;
 const ROD_TIP_Y_OFFSET = -14 + ROD_OFFSET_Y;
 const HOOK_SPEED = 280;
 const REEL_SPEED = 320;
-const GOLDEN_FISH_CHANCE = 0.04;
+const GOLD_VARIANT_CHANCE = 0.06;
+const GOLD_VARIANT_BONUS_POINTS = 100;
 const GIANT_LINE_BREAK_CHANCE = 0.38;
 const SHARK_LINE_BREAK_CHANCE = 0.15;
 const SHARK_KINDS = new Set(['shark', 'wobbegong', 'makoshark', 'sawshark', 'hammerhead']);
@@ -110,17 +122,6 @@ function resolveCatchSuccessRate(type) {
   const successAfterHook = catchRate * (1 - getLineBreakChance(type));
   return Math.max(successAfterHook, MIN_CATCH_SUCCESS_RATE);
 }
-const GOLDEN_FISH = {
-  kind: 'golden_fish',
-  name: '황금 물고기',
-  color: 0xffd43b,
-  points: 100,
-  speed: 180,
-  size: 32,
-  texture: 'creature_golden_fish',
-  textureScale: 0.72,
-  textureFacing: 'left',
-};
 const CREATURES = [
   { kind: 'fish', name: '붕어', color: 0xffa94d, points: 10, speed: 80, size: 28, weight: 18, ...NORMAL_FISH_TEXTURE },
   { kind: 'fish', name: '잉어', color: 0xff6b6b, points: 20, speed: 100, size: 34, weight: 16, ...NORMAL_FISH_TEXTURE },
@@ -869,21 +870,17 @@ export default class GameScene extends Phaser.Scene {
   }
 
   pickCreature() {
-    if (Math.random() < GOLDEN_FISH_CHANCE) {
-      return GOLDEN_FISH;
-    }
-
     const totalWeight = CREATURES.reduce((sum, creature) => sum + creature.weight, 0);
     let roll = Phaser.Math.Between(1, totalWeight);
 
     for (const creature of CREATURES) {
       roll -= creature.weight;
       if (roll <= 0) {
-        return creature;
+        return maybeCreateGoldVariant(creature);
       }
     }
 
-    return CREATURES[0];
+    return maybeCreateGoldVariant(CREATURES[0]);
   }
 
   getSpawnY(type) {
@@ -917,9 +914,6 @@ export default class GameScene extends Phaser.Scene {
     }
     if (type.kind === 'squid') {
       return Phaser.Math.Between(WATER_TOP + 70, floor - 16);
-    }
-    if (type.kind === 'golden_fish') {
-      return Phaser.Math.Between(WATER_TOP + 80, floor - 12);
     }
     if (type.kind === 'shark') {
       return Phaser.Math.Between(WATER_TOP + 80, floor - 20);
@@ -992,7 +986,9 @@ export default class GameScene extends Phaser.Scene {
       const facesLeft = type.textureFacing === 'left';
       const flipX = facesLeft ? direction > 0 : direction < 0;
 
-      if (type.useRandomTint && type.tintColors?.length) {
+      if (type.isGoldVariant) {
+        sprite.setTint(0xffd43b);
+      } else if (type.useRandomTint && type.tintColors?.length) {
         const tintColor = type.tintColors[Phaser.Math.Between(0, type.tintColors.length - 1)];
         sprite.setTint(tintColor);
       } else if (type.useTint && type.color) {
@@ -1014,6 +1010,9 @@ export default class GameScene extends Phaser.Scene {
         container.electricPhase = Math.random() * Math.PI * 2;
         container.baseScale = scale;
         container.usesTexture = true;
+        if (type.isGoldVariant) {
+          this.attachGoldSparkles(container, sprite.displayWidth, sprite.displayHeight);
+        }
         return container;
       }
 
@@ -1021,6 +1020,9 @@ export default class GameScene extends Phaser.Scene {
       sprite.setFlipX(type.kind === 'flyingfish' ? false : flipX);
       sprite.baseScale = scale;
       sprite.usesTexture = true;
+      if (type.isGoldVariant) {
+        return this.wrapGoldVariant(sprite, x, y, scale, true);
+      }
       return sprite;
     }
 
@@ -1028,7 +1030,80 @@ export default class GameScene extends Phaser.Scene {
     this.drawCreature(graphics, type, direction);
     graphics.baseScale = 1;
     graphics.usesTexture = false;
+    if (type.isGoldVariant) {
+      return this.wrapGoldVariant(graphics, x, y, 1, false);
+    }
     return graphics;
+  }
+
+  attachGoldSparkles(entity, bodyWidth, bodyHeight) {
+    const sparkles = this.add.graphics();
+    sparkles.setBlendMode(Phaser.BlendModes.ADD);
+    entity.add(sparkles);
+    entity.goldSparkles = sparkles;
+    this.drawGoldSparkles(sparkles, bodyWidth, bodyHeight, 0);
+  }
+
+  wrapGoldVariant(entity, x, y, baseScale, usesTexture) {
+    const wrapper = this.add.container(x, y);
+    entity.setPosition(0, 0);
+    wrapper.add(entity);
+
+    const sprite = entity.creatureSprite ?? (usesTexture ? entity : null);
+    const bodyWidth = sprite?.displayWidth ?? entity.displayWidth ?? 48;
+    const bodyHeight = sprite?.displayHeight ?? entity.displayHeight ?? 32;
+    this.attachGoldSparkles(wrapper, bodyWidth, bodyHeight);
+
+    wrapper.creatureSprite = sprite ?? entity;
+    wrapper.baseScale = entity.baseScale ?? baseScale;
+    wrapper.usesTexture = entity.usesTexture ?? usesTexture;
+    wrapper.electricAura = entity.electricAura;
+    wrapper.electricPhase = entity.electricPhase;
+    return wrapper;
+  }
+
+  drawGoldSparkles(graphics, bodyWidth, bodyHeight, phase) {
+    graphics.clear();
+    const pulse = 0.35 + Math.sin(phase * 5) * 0.25;
+
+    graphics.lineStyle(3, 0xffd43b, pulse);
+    graphics.strokeEllipse(0, 0, bodyWidth * 1.1, bodyHeight * 0.95);
+    graphics.lineStyle(2, 0xfff3bf, pulse * 0.85);
+    graphics.strokeEllipse(0, 0, bodyWidth * 1.04, bodyHeight * 0.88);
+
+    for (let i = 0; i < 6; i += 1) {
+      const angle = phase * 2.2 + (Math.PI * 2 * i) / 6;
+      const sx = Math.cos(angle) * bodyWidth * 0.54;
+      const sy = Math.sin(angle) * bodyHeight * 0.4;
+      graphics.fillStyle(0xffffff, pulse * 0.75);
+      graphics.fillCircle(sx, sy, 2 + Math.sin(phase * 3 + i) * 1.2);
+    }
+  }
+
+  updateGoldVariantVisuals(fish, bobTime) {
+    const type = fish.creatureType;
+    if (!type?.isGoldVariant) return;
+
+    const phase = bobTime + fish.bobOffset;
+    const pulse = 0.5 + Math.sin(phase * 8) * 0.5;
+    const sprite = fish.usesTexture ? this.getCreatureSprite(fish) : fish;
+    const bodyWidth = sprite.displayWidth ?? type.size;
+    const bodyHeight = sprite.displayHeight ?? type.size * 0.5;
+
+    if (fish.usesTexture && sprite.setTint) {
+      sprite.setTint(Phaser.Display.Color.GetColor(255, Math.round(210 + 45 * pulse), Math.round(80 + 110 * pulse)));
+    }
+
+    fish.alpha = 0.9 + Math.sin(phase * 12) * 0.1;
+
+    if (fish.goldSparkles) {
+      this.drawGoldSparkles(fish.goldSparkles, bodyWidth, bodyHeight, phase);
+      if (fish.vx !== undefined && fish.usesTexture) {
+        const facesLeft = type.textureFacing === 'left';
+        const flipX = facesLeft ? fish.vx > 0 : fish.vx < 0;
+        fish.goldSparkles.setScale(flipX ? -1 : 1, 1);
+      }
+    }
   }
 
   drawMiniElectricBolt(graphics, startX, startY, height) {
@@ -1102,6 +1177,10 @@ export default class GameScene extends Phaser.Scene {
     }
 
     sprite.setFlipX(facesLeft ? direction > 0 : direction < 0);
+
+    if (type.isGoldVariant && creature.goldSparkles) {
+      creature.goldSparkles.setScale(flipX ? -1 : 1, 1);
+    }
   }
 
   applyHookFleeBehavior(fish) {
@@ -1146,20 +1225,16 @@ export default class GameScene extends Phaser.Scene {
       const angleMultiplier = type.kind === 'dolphin' ? 0.75 : type.moveStyle === 'zigzag' ? 0.4 : 1;
       const angle = Phaser.Math.RadToDeg(Math.atan2(vy, vx)) * angleMultiplier;
       creature.setAngle(angle);
-      return;
-    }
-
-    if (type.kind === 'golden_fish' && creature.usesTexture) {
-      creature.setScale(creature.baseScale);
     }
   }
 
   drawCreature(graphics, type, direction) {
     const s = type.size;
+    const creatureColor = type.isGoldVariant ? 0xffd43b : type.color;
 
     switch (type.kind) {
       case 'fish':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillTriangle(
           -direction * s * 0.55, 0,
           -direction * s * 0.95, -8,
@@ -1173,9 +1248,9 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'jellyfish':
-        graphics.fillStyle(type.color, 0.55);
+        graphics.fillStyle(creatureColor, 0.55);
         graphics.fillEllipse(0, -6, s * 0.9, s * 0.45);
-        graphics.lineStyle(2, type.color, 0.7);
+        graphics.lineStyle(2, creatureColor, 0.7);
         for (let i = -2; i <= 2; i += 1) {
           graphics.lineBetween(i * 5, 2, i * 4, s * 0.55);
         }
@@ -1184,7 +1259,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'lantern_anglerfish':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 4, s * 0.72, s * 0.46);
         graphics.fillStyle(0xff8787, 1);
         graphics.fillEllipse(direction * s * 0.18, 8, s * 0.22, s * 0.14);
@@ -1207,23 +1282,23 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'octopus':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillCircle(0, -4, s * 0.38);
         graphics.fillStyle(0xffffff, 1);
         graphics.fillCircle(direction * 8, -8, 4);
         graphics.fillStyle(0x000000, 1);
         graphics.fillCircle(direction * 9, -8, 2);
         for (let i = -3; i <= 3; i += 1) {
-          graphics.lineStyle(3, type.color, 1);
+          graphics.lineStyle(3, creatureColor, 1);
           graphics.lineBetween(i * 5, 6, i * 7, s * 0.45);
         }
         break;
 
       case 'seahorse':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * 4, 0, s * 0.35, s * 0.7);
         graphics.fillEllipse(-direction * 6, -s * 0.35, s * 0.22, s * 0.22);
-        graphics.lineStyle(3, type.color, 1);
+        graphics.lineStyle(3, creatureColor, 1);
         graphics.lineBetween(-direction * 2, s * 0.25, -direction * 10, s * 0.45);
         graphics.fillStyle(0xffffff, 1);
         graphics.fillCircle(-direction * 7, -s * 0.35, 2.5);
@@ -1239,7 +1314,7 @@ export default class GameScene extends Phaser.Scene {
         graphics.strokeEllipse(0, 0, s * 0.55, s * 0.4);
         graphics.lineBetween(-s * 0.15, -s * 0.15, s * 0.15, s * 0.15);
         graphics.lineBetween(-s * 0.15, s * 0.15, s * 0.15, -s * 0.15);
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillCircle(direction * s * 0.38, -2, s * 0.24);
         graphics.fillStyle(0xffffff, 1);
         graphics.fillCircle(direction * s * 0.44, -4, 3);
@@ -1248,11 +1323,11 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'crab':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 2, s * 0.75, s * 0.45);
         graphics.fillCircle(-s * 0.42, -2, 7);
         graphics.fillCircle(s * 0.42, -2, 7);
-        graphics.lineStyle(3, type.color, 1);
+        graphics.lineStyle(3, creatureColor, 1);
         for (let i = -1; i <= 1; i += 2) {
           graphics.lineBetween(i * s * 0.35, 6, i * s * 0.55, 14);
           graphics.lineBetween(i * s * 0.35, 6, i * s * 0.15, 14);
@@ -1262,7 +1337,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'crayfish':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(-direction * s * 0.28, 0, s * 0.24, s * 0.2);
         graphics.fillEllipse(0, 4, s * 0.58, s * 0.3);
         graphics.fillEllipse(-direction * s * 0.44, -10, s * 0.3, s * 0.11);
@@ -1279,7 +1354,7 @@ export default class GameScene extends Phaser.Scene {
 
       case 'dolphin':
       case 'beluga':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.88, s * 0.34);
         if (type.kind === 'dolphin') {
           graphics.fillTriangle(
@@ -1300,7 +1375,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'flyingfish':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.58, s * 0.2);
         graphics.fillTriangle(
           -direction * s * 0.18, -1,
@@ -1319,7 +1394,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'starfish':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillPoints([
           { x: 0, y: -s * 0.45 },
           { x: s * 0.14, y: -s * 0.14 },
@@ -1335,10 +1410,10 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'shrimp':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * 6, 0, s * 0.55, s * 0.28);
         graphics.fillEllipse(-direction * 4, -2, s * 0.35, s * 0.22);
-        graphics.lineStyle(2, type.color, 1);
+        graphics.lineStyle(2, creatureColor, 1);
         graphics.lineBetween(-direction * 10, -4, -direction * 14, -10);
         graphics.lineBetween(-direction * 10, 4, -direction * 14, 10);
         graphics.fillStyle(0x000000, 1);
@@ -1346,14 +1421,14 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'ray':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 4, s, s * 0.55);
         graphics.fillTriangle(
           -direction * s * 0.45, 4,
           -direction * s * 0.75, s * 0.35,
           -direction * s * 0.15, s * 0.35
         );
-        graphics.lineStyle(3, type.color, 1);
+        graphics.lineStyle(3, creatureColor, 1);
         graphics.lineBetween(0, s * 0.2, direction * s * 0.35, s * 0.55);
         graphics.fillStyle(0xffffff, 1);
         graphics.fillCircle(direction * 12, -2, 3);
@@ -1362,7 +1437,7 @@ export default class GameScene extends Phaser.Scene {
       case 'shark':
         graphics.fillStyle(0xdde2e8, 1);
         graphics.fillEllipse(-direction * 2, 4, s * 0.55, s * 0.32);
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * 4, 0, s * 0.95, s * 0.42);
         graphics.fillTriangle(
           -direction * s * 0.55, 0,
@@ -1383,7 +1458,7 @@ export default class GameScene extends Phaser.Scene {
 
       case 'electric_eel':
       case 'eel':
-        graphics.lineStyle(s * 0.16, type.color, 1);
+        graphics.lineStyle(s * 0.16, creatureColor, 1);
         graphics.beginPath();
         graphics.moveTo(-direction * s * 0.48, 0);
         for (let i = 1; i <= 8; i += 1) {
@@ -1414,7 +1489,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'squid':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * s * 0.05, -2, s * 0.62, s * 0.38);
         graphics.fillStyle(0xffdeeb, 1);
         graphics.fillEllipse(direction * s * 0.12, -4, s * 0.35, s * 0.22);
@@ -1438,27 +1513,8 @@ export default class GameScene extends Phaser.Scene {
         }
         break;
 
-      case 'golden_fish':
-        graphics.fillStyle(0xffec99, 1);
-        graphics.fillTriangle(
-          -direction * s * 0.55, 0,
-          -direction * s * 0.95, -10,
-          -direction * s * 0.95, 10
-        );
-        graphics.fillStyle(type.color, 1);
-        graphics.fillEllipse(0, 0, s, s * 0.58);
-        graphics.fillStyle(0xffffff, 0.75);
-        graphics.fillEllipse(-s * 0.12, -s * 0.12, s * 0.22, s * 0.14);
-        graphics.fillStyle(0xffffff, 1);
-        graphics.fillCircle(direction * s * 0.26, -4, 3.5);
-        graphics.fillStyle(0x000000, 1);
-        graphics.fillCircle(direction * s * 0.28, -4, 1.5);
-        graphics.lineStyle(2, 0xfff3bf, 0.9);
-        graphics.strokeEllipse(0, 0, s * 0.85, s * 0.48);
-        break;
-
       case 'wobbegong':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.9, s * 0.38);
         for (let i = -2; i <= 2; i += 1) {
           graphics.fillStyle(0x5d4037, 0.7);
@@ -1469,13 +1525,13 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'makoshark':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * 6, 0, s * 0.7, s * 0.34);
         graphics.fillTriangle(-direction * s * 0.55, 0, -direction * s * 0.9, -10, -direction * s * 0.9, 10);
         break;
 
       case 'sawshark':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * 6, 0, s * 0.7, s * 0.34);
         graphics.lineStyle(2, 0xffffff, 0.9);
         for (let i = -4; i <= 4; i += 1) {
@@ -1485,7 +1541,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'hammerhead':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillRect(-direction * s * 0.15, -s * 0.18, direction * s * 0.55, s * 0.36);
         graphics.fillEllipse(direction * 8, 0, s * 0.72, s * 0.28);
         graphics.fillTriangle(-direction * s * 0.5, 0, -direction * s * 0.85, -12, -direction * s * 0.85, 12);
@@ -1497,7 +1553,7 @@ export default class GameScene extends Phaser.Scene {
       case 'orca':
         graphics.fillStyle(0xffffff, 1);
         graphics.fillEllipse(0, 4, s * 0.55, s * 0.22);
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.82, s * 0.34);
         graphics.fillEllipse(direction * s * 0.38, -2, s * 0.22, s * 0.16);
         graphics.fillStyle(0xffffff, 1);
@@ -1507,11 +1563,11 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'manta':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s, s * 0.62);
         graphics.fillStyle(0x78909c, 1);
         graphics.fillEllipse(0, 6, s * 0.35, s * 0.22);
-        graphics.lineStyle(3, type.color, 1);
+        graphics.lineStyle(3, creatureColor, 1);
         graphics.lineBetween(-s * 0.15, s * 0.15, 0, s * 0.45);
         graphics.lineBetween(s * 0.15, s * 0.15, 0, s * 0.45);
         graphics.fillStyle(0xffffff, 1);
@@ -1519,7 +1575,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'giantsquid':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * 4, -4, s * 0.72, s * 0.42);
         graphics.fillStyle(0xffdeeb, 1);
         graphics.fillCircle(direction * s * 0.28, -8, 7);
@@ -1535,7 +1591,7 @@ export default class GameScene extends Phaser.Scene {
       case 'mosasaurus':
         graphics.fillStyle(0xb0bec5, 1);
         graphics.fillEllipse(-direction * 4, 6, s * 0.62, s * 0.34);
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * 6, 0, s, s * 0.4);
         graphics.fillTriangle(-direction * s * 0.58, 0, -direction * s * 0.98, -18, -direction * s * 0.98, 18);
         graphics.fillStyle(0x263238, 1);
@@ -1549,7 +1605,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'seal':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.75, s * 0.34);
         graphics.fillCircle(-direction * s * 0.35, -2, s * 0.2);
         graphics.fillStyle(0x868e96, 1);
@@ -1559,7 +1615,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'leopard_seal':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.78, s * 0.32);
         graphics.fillCircle(-direction * s * 0.34, -2, s * 0.2);
         for (let i = -2; i <= 2; i += 1) {
@@ -1571,7 +1627,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'dunkleosteus':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.82, s * 0.38);
         graphics.fillStyle(0x3e2723, 1);
         graphics.fillRect(-direction * s * 0.42, -s * 0.12, direction * s * 0.28, s * 0.24);
@@ -1582,7 +1638,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'horseshoe_crab':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 2, s * 0.72, s * 0.48);
         graphics.fillStyle(0x8d6e63, 1);
         graphics.fillCircle(0, -s * 0.08, s * 0.22);
@@ -1593,7 +1649,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'pufferfish':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillCircle(0, 0, s * 0.32);
         graphics.lineStyle(2, 0xf59f00, 1);
         for (let i = 0; i < 8; i += 1) {
@@ -1608,7 +1664,7 @@ export default class GameScene extends Phaser.Scene {
       case 'carp_king':
         graphics.fillStyle(0xffd43b, 1);
         graphics.fillTriangle(-4, -s * 0.22, 4, -s * 0.32, 0, -s * 0.12);
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.82, s * 0.48);
         graphics.fillStyle(0xffec99, 1);
         graphics.fillEllipse(-s * 0.1, -s * 0.1, s * 0.2, s * 0.12);
@@ -1618,10 +1674,10 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'crocodile':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s * 0.82, s * 0.28);
         graphics.fillEllipse(direction * s * 0.42, -2, s * 0.28, s * 0.14);
-        graphics.lineStyle(2, type.color, 1);
+        graphics.lineStyle(2, creatureColor, 1);
         for (let i = -2; i <= 3; i += 1) {
           graphics.lineBetween(direction * (10 + i * 6), 4, direction * (14 + i * 6), 10);
         }
@@ -1632,12 +1688,12 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'pistol_shrimp':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(direction * 4, 0, s * 0.5, s * 0.22);
         graphics.fillEllipse(-direction * 6, -2, s * 0.28, s * 0.16);
         graphics.fillStyle(0xffd43b, 1);
         graphics.fillCircle(-direction * 12, 0, 4);
-        graphics.lineStyle(2, type.color, 1);
+        graphics.lineStyle(2, creatureColor, 1);
         graphics.lineBetween(-direction * 8, 4, -direction * 14, 8);
         break;
 
@@ -1655,7 +1711,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'whale_shark':
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillEllipse(0, 0, s, s * 0.38);
         graphics.fillStyle(0xffffff, 1);
         for (let i = -3; i <= 2; i += 1) {
@@ -1667,7 +1723,7 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       default:
-        graphics.fillStyle(type.color, 1);
+        graphics.fillStyle(creatureColor, 1);
         graphics.fillCircle(0, 0, s * 0.4);
         break;
     }
@@ -1879,7 +1935,7 @@ export default class GameScene extends Phaser.Scene {
 
     creature.setDepth(
       isSandCrawler(type) ? SAND_CRAWLER_DEPTH
-        : type.kind === 'golden_fish' || type.size >= 75 ? 6
+        : type.isGoldVariant || type.size >= 75 ? 6
           : CREATURE_DEPTH,
     );
 
@@ -2011,8 +2067,8 @@ export default class GameScene extends Phaser.Scene {
     }
     fish.angle = 0;
 
-    const isGolden = type.kind === 'golden_fish';
-    const isGiant = type.giantTier;
+    const isGolden = type.isGoldVariant === true;
+    const isGiant = type.giantTier && !isGolden;
     const flashSize = isGolden ? 50 : isGiant ? 48 : type.size >= 70 ? 40 : 30;
     const flash = this.add.circle(fish.x, fish.y, flashSize, isGolden ? 0xffd43b : 0xffffff, 0.7);
     this.tweens.add({
@@ -2276,10 +2332,12 @@ export default class GameScene extends Phaser.Scene {
               );
             }
             const redPulse = Math.sin(bobTime * 14 + fish.bobOffset);
-            if (redPulse > 0.45) {
-              apexSprite.setTint(0xff3333);
-            } else {
-              apexSprite.clearTint();
+            if (!fish.creatureType.isGoldVariant) {
+              if (redPulse > 0.45) {
+                apexSprite.setTint(0xff3333);
+              } else {
+                apexSprite.clearTint();
+              }
             }
           }
           break;
@@ -2309,11 +2367,6 @@ export default class GameScene extends Phaser.Scene {
           break;
         case 'turtle':
           fish.y += Math.sin(bobTime * 1.2 + fish.bobOffset) * 10 * dt;
-          break;
-        case 'golden_fish':
-          fish.y += Math.sin(bobTime * 4 + fish.bobOffset) * 28 * dt;
-          fish.setScale(fish.baseScale * (1 + Math.sin(bobTime * 8 + fish.bobOffset) * 0.1));
-          fish.alpha = 0.88 + Math.sin(bobTime * 10 + fish.bobOffset) * 0.12;
           break;
         case 'eel':
           fish.angle = Math.sin(bobTime * 6 + fish.bobOffset) * 12;
@@ -2347,6 +2400,10 @@ export default class GameScene extends Phaser.Scene {
       }
 
       this.clampWaterCreatureY(fish);
+
+      if (fish.creatureType.isGoldVariant) {
+        this.updateGoldVariantVisuals(fish, bobTime);
+      }
 
       if (fish.creatureType.kind === 'flyingfish') {
         const floor = getWaterFloorY(fish.creatureType);
