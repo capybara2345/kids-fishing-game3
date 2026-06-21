@@ -24,11 +24,12 @@ const WATER_GRADIENT_TOP = 0x1864ab;
 const WATER_GRADIENT_BOTTOM = 0x0b7285;
 const MEGALODON_WATER_GRADIENT_TOP = 0x9b1c1c;
 const MEGALODON_WATER_GRADIENT_BOTTOM = 0x5c1010;
-const APEX_PREDATOR_KINDS = new Set(['megalodon', 'mosasaurus', 'electric_eel']);
+const APEX_PREDATOR_KINDS = new Set(['megalodon', 'mosasaurus', 'electric_eel', 'mantis_shrimp']);
 const APEX_PREDATOR_SPAWN_MESSAGES = {
   megalodon: '🦈 메갈로돈이 나타났다! 🦈',
   mosasaurus: '🦕 모사사우루스가 나타났다! 🦕',
   electric_eel: '⚡ 전기뱀장어가 나타났다! ⚡',
+  mantis_shrimp: '🦐 맨티스쉬림프가 나타났다! 🦐',
 };
 
 function isApexPredator(kind) {
@@ -92,7 +93,7 @@ const LIGHTNING_FREEZE_SECONDS = 2;
 const LIGHTNING_COOLDOWN_SECONDS = 20;
 const LIGHTNING_EFFECT_DEPTH = 3;
 const MIN_CATCH_SUCCESS_RATE = 0.9;
-/** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'electric_eel' | 'whale_shark' | null) */
+/** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'electric_eel' | 'mantis_shrimp' | 'whale_shark' | null) */
 const TEST_FIRST_CREATURE = null;
 
 function getLineBreakChance(type) {
@@ -151,6 +152,7 @@ const CREATURES = [
   { kind: 'megalodon', name: '메갈로돈', color: 0x37474f, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_megalodon', textureScale: 1, textureFacing: 'left' },
   { kind: 'mosasaurus', name: '모사사우루스', color: 0x455a64, points: 300, speed: 165, size: MOSASAURUS_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_mosasaurus', textureScale: 1, textureFacing: 'right' },
   { kind: 'electric_eel', name: '전기뱀장어', color: 0xffd43b, points: 300, speed: 165, size: MEGALODON_SIZE, weight: 1, spawnZone: 'large', giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_electric_eel', textureScale: 1, textureFacing: 'left', electricEffect: true },
+  { kind: 'mantis_shrimp', name: '맨티스쉬림프', color: 0x51cf66, points: 300, speed: 210, size: 130, weight: 1, spawnZone: 'bottom', moveStyle: 'bottomJump', jumpPower: 0.92, jumpInterval: 0.5, gravity: 520, giantTier: true, lineBreakChance: 0.5, catchChance: 0.1, texture: 'creature_mantis_shrimp', textureScale: 0.88, textureFacing: 'right' },
   { kind: 'seal', name: '물개', color: 0xadb5bd, points: 48, speed: 85, size: 40, weight: 6, spawnZone: 'surface', ...FUR_SEAL_TEXTURE },
   { kind: 'leopard_seal', name: '바다표범', color: 0xf1f3f5, points: 65, speed: 100, size: 44, weight: 4, spawnZone: 'mid', ...FUR_SEAL_TEXTURE, textureScale: 0.9 },
   { kind: 'dunkleosteus', name: '둔클레오사우루스', color: 0x5d4e37, points: 200, speed: 55, size: DUNKLEOSTEUS_SIZE, weight: 2, spawnZone: 'large', texture: 'creature_dunkleosteus', textureScale: 0.92, textureFacing: 'left' },
@@ -202,7 +204,7 @@ export default class GameScene extends Phaser.Scene {
     this.setupInput();
     this.createStartOverlay();
 
-    if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus' || TEST_FIRST_CREATURE === 'electric_eel') {
+    if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus' || TEST_FIRST_CREATURE === 'electric_eel' || TEST_FIRST_CREATURE === 'mantis_shrimp') {
       this.pendingStartMessage = {
         text: '던지기 버튼으로 낚싯줄을 던지세요!',
         duration: 2200,
@@ -934,12 +936,48 @@ export default class GameScene extends Phaser.Scene {
 
   clampWaterCreatureY(fish) {
     if (isSandCrawler(fish.creatureType)) return;
+    if (fish.creatureType.moveStyle === 'bottomJump') return;
     if (fish.creatureType.kind === 'flyingfish') return;
 
     const floor = getWaterFloorY(fish.creatureType);
     if (fish.y > floor) {
       fish.y = floor;
       if (fish.vy > 0) fish.vy = 0;
+    }
+  }
+
+  applyBottomJumpMotion(fish, dt, bobTime) {
+    const type = fish.creatureType;
+    const groundY = getWaterFloorY(type);
+    const ceilingY = WATER_TOP + 48;
+
+    fish.jumpCooldown = (fish.jumpCooldown ?? 0) - dt;
+
+    if (fish.y >= groundY) {
+      fish.y = groundY;
+      if (fish.vy > 0) fish.vy = 0;
+
+      if (fish.jumpCooldown <= 0) {
+        fish.vy = -type.speed * (type.jumpPower ?? 0.9);
+        fish.jumpCooldown = type.jumpInterval ?? 0.55;
+      }
+
+      fish.angle = Phaser.Math.Linear(fish.angle ?? 0, 0, dt * 12);
+    } else {
+      fish.vy += (type.gravity ?? 480) * dt;
+      const jumpTilt = -24 * Math.sign(fish.vx || 1);
+      fish.angle = Phaser.Math.Linear(fish.angle ?? 0, jumpTilt, dt * 14);
+    }
+
+    if (fish.y < ceilingY) {
+      fish.y = ceilingY;
+      if (fish.vy < 0) fish.vy = 0;
+    }
+
+    if (fish.usesTexture) {
+      const sprite = this.getCreatureSprite(fish);
+      const facesLeft = type.textureFacing === 'left';
+      sprite.setFlipX(facesLeft ? fish.vx > 0 : fish.vx < 0);
     }
   }
 
@@ -1603,6 +1641,19 @@ export default class GameScene extends Phaser.Scene {
         graphics.lineBetween(-direction * 8, 4, -direction * 14, 8);
         break;
 
+      case 'mantis_shrimp':
+        graphics.fillStyle(0x51cf66, 1);
+        graphics.fillEllipse(0, 0, s * 0.72, s * 0.28);
+        graphics.fillStyle(0xff6b6b, 1);
+        graphics.fillEllipse(direction * s * 0.28, -2, s * 0.18, s * 0.14);
+        graphics.fillStyle(0x339af0, 1);
+        graphics.fillCircle(-direction * s * 0.18, -s * 0.08, s * 0.07);
+        graphics.fillCircle(direction * s * 0.18, -s * 0.08, s * 0.07);
+        graphics.lineStyle(2, 0xff922b, 1);
+        graphics.lineBetween(-direction * s * 0.34, -s * 0.04, -direction * s * 0.48, -s * 0.12);
+        graphics.lineBetween(-direction * s * 0.34, s * 0.04, -direction * s * 0.48, s * 0.12);
+        break;
+
       case 'whale_shark':
         graphics.fillStyle(type.color, 1);
         graphics.fillEllipse(0, 0, s, s * 0.38);
@@ -1801,12 +1852,21 @@ export default class GameScene extends Phaser.Scene {
       y = getSandCrawlerY(type);
     }
 
+    if (type.moveStyle === 'bottomJump') {
+      y = getWaterFloorY(type);
+      vy = 0;
+    }
+
     const creature = this.createCreatureEntity(x, y, type, direction);
 
     creature.creatureType = type;
     creature.vx = vx;
     creature.vy = vy;
     creature.bobOffset = Phaser.Math.FloatBetween(0, Math.PI * 2);
+
+    if (type.moveStyle === 'bottomJump') {
+      creature.jumpCooldown = 0;
+    }
 
     if (type.fleeFromHook) {
       creature.baseVx = vx;
@@ -2197,8 +2257,13 @@ export default class GameScene extends Phaser.Scene {
         case 'megalodon':
         case 'mosasaurus':
         case 'electric_eel':
-          fish.y += Math.sin(bobTime * 3 + fish.bobOffset) * 14 * dt;
-          fish.angle = Math.sin(bobTime * 4 + fish.bobOffset) * 3;
+        case 'mantis_shrimp':
+          if (fish.creatureType.moveStyle === 'bottomJump') {
+            this.applyBottomJumpMotion(fish, dt, bobTime);
+          } else {
+            fish.y += Math.sin(bobTime * 3 + fish.bobOffset) * 14 * dt;
+            fish.angle = Math.sin(bobTime * 4 + fish.bobOffset) * 3;
+          }
           if (fish.usesTexture) {
             const apexSprite = this.getCreatureSprite(fish);
             if (fish.creatureType.kind === 'electric_eel' && fish.electricAura) {
