@@ -20,6 +20,10 @@ const config = {
     },
   },
   scene: [BootScene, GameScene],
+  audio: {
+    disableWebAudio: false,
+    noAudio: false,
+  },
 };
 
 new Phaser.Game(config);

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { getTextureKeyForCreature, FUR_SEAL_TEXTURE, NORMAL_FISH_TEXTURE, RAY_TEXTURE, SEAHORSE_TEXTURE, SHRIMP_TEXTURE, SQUID_TEXTURE, TURTLE_TEXTURE } from '../config/creatureAssets.js';
+import { GAME_AUDIO } from '../config/gameAudio.js';
 import { pickRandomQuizQuestion, QUIZ_CATEGORY_LABELS } from '../config/quizQuestions.js';
 
 const GAME_WIDTH = 844;
@@ -184,16 +185,111 @@ export default class GameScene extends Phaser.Scene {
     this.createTouchControls();
     this.createFishGroup();
     this.setupInput();
-    this.setupTimers();
+    this.setupAudio();
+    this.createStartOverlay();
 
     if (TEST_FIRST_CREATURE === 'megalodon' || TEST_FIRST_CREATURE === 'mosasaurus') {
-      this.time.delayedCall(3200, () => {
+      this.pendingStartMessage = {
+        text: '던지기 버튼으로 낚싯줄을 던지세요!',
+        duration: 2200,
+        delay: 3200,
+      };
+    } else {
+      this.pendingStartMessage = {
+        text: '던지기 버튼으로 낚싯줄을 던지세요!',
+        duration: 2200,
+        delay: 0,
+      };
+    }
+  }
+
+  createStartOverlay() {
+    this.isGameStarted = false;
+    this.touchUI?.setVisible(false);
+
+    this.startOverlay = this.add.container(0, 0).setDepth(220);
+
+    const backdrop = this.add.rectangle(
+      GAME_WIDTH / 2,
+      GAME_HEIGHT / 2,
+      GAME_WIDTH,
+      GAME_HEIGHT,
+      0x0b1d33,
+      0.78,
+    );
+
+    const title = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 58, '낚시 게임', {
+      fontFamily: 'Segoe UI, sans-serif',
+      fontSize: '34px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 4,
+    }).setOrigin(0.5);
+
+    const subtitle = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 16, '시작하기를 누르면 배경음악과 함께 게임이 시작됩니다', {
+      fontFamily: 'Segoe UI, sans-serif',
+      fontSize: '15px',
+      color: '#d0ebff',
+      align: 'center',
+    }).setOrigin(0.5);
+
+    const startButton = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 42);
+    const buttonBg = this.add.rectangle(0, 0, 220, 58, 0x339af0, 0.96).setStrokeStyle(2, 0xffffff);
+    const buttonText = this.add.text(0, 0, '시작하기', {
+      fontFamily: 'Segoe UI, sans-serif',
+      fontSize: '24px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    startButton.add([buttonBg, buttonText]);
+    startButton.setSize(220, 58);
+    startButton.setInteractive({ useHandCursor: true });
+
+    startButton.on('pointerdown', () => {
+      buttonBg.setFillStyle(0x228be6, 1);
+      this.beginGame();
+    });
+    startButton.on('pointerup', () => {
+      buttonBg.setFillStyle(0x339af0, 0.96);
+    });
+    startButton.on('pointerout', () => {
+      buttonBg.setFillStyle(0x339af0, 0.96);
+    });
+
+    this.startOverlay.add([backdrop, title, subtitle, startButton]);
+  }
+
+  beginGame() {
+    if (this.isGameStarted) return;
+    this.isGameStarted = true;
+
+    if (this.startOverlay) {
+      this.startOverlay.destroy();
+      this.startOverlay = null;
+    }
+
+    if (this.sound.locked) {
+      this.sound.unlock();
+    }
+    this.startBgm();
+
+    this.setupTimers();
+    this.touchUI?.setVisible(true);
+    this.updateTouchControlsVisibility();
+
+    const { text, duration, delay = 0 } = this.pendingStartMessage ?? {
+      text: '던지기 버튼으로 낚싯줄을 던지세요!',
+      duration: 2200,
+      delay: 0,
+    };
+
+    if (delay > 0) {
+      this.time.delayedCall(delay, () => {
         if (!this.isGameOver) {
-          this.showMessage('던지기 버튼으로 낚싯줄을 던지세요!', 2200);
+          this.showMessage(text, duration);
         }
       });
     } else {
-      this.showMessage('던지기 버튼으로 낚싯줄을 던지세요!', 2200);
+      this.showMessage(text, duration);
     }
   }
 
@@ -294,12 +390,12 @@ export default class GameScene extends Phaser.Scene {
     this.dpad.setVisible(false);
 
     this.castButton = this.createActionButton(68, controlCenterY, '던지기', () => {
-      if (this.isGameOver || this.isQuizActive || this.isCasting || this.isReeling) return;
+      if (!this.isGameStarted || this.isGameOver || this.isQuizActive || this.isCasting || this.isReeling) return;
       this.cast();
     });
 
     this.reelButton = this.createActionButton(68, controlCenterY, '감기', () => {
-      if (this.isGameOver || this.isQuizActive) return;
+      if (!this.isGameStarted || this.isGameOver || this.isQuizActive) return;
       this.startReel();
     });
     this.reelButton.setVisible(false);
@@ -1197,15 +1293,78 @@ export default class GameScene extends Phaser.Scene {
     this.keySpace = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     this.keySpace.on('down', () => {
-      if (this.isGameOver || this.isQuizActive) return;
+      if (!this.isGameStarted || this.isGameOver || this.isQuizActive) return;
       if (!this.isCasting && !this.isReeling) this.cast();
     });
 
     this.keyR.on('down', () => {
+      if (!this.isGameStarted || this.isGameOver || this.isQuizActive) return;
       if (this.isCasting && !this.isReeling) this.startReel();
     });
 
     this.updateTouchControlsVisibility();
+  }
+
+  setupAudio() {
+    this.bgmStarted = false;
+    this.bgm = this.sound.add(GAME_AUDIO.bgm.key, {
+      loop: GAME_AUDIO.bgm.loop,
+      volume: GAME_AUDIO.bgm.volume,
+    });
+    this.castSound = this.sound.add(GAME_AUDIO.cast.key, {
+      volume: GAME_AUDIO.cast.volume,
+    });
+    this.catchSound = this.sound.add(GAME_AUDIO.catch.key, {
+      volume: GAME_AUDIO.catch.volume,
+    });
+
+    this.onAudioUnlocked = () => {
+      if (this.isGameStarted) {
+        this.startBgm();
+      }
+    };
+
+    this.sound.on('unlocked', this.onAudioUnlocked);
+  }
+
+  startBgm() {
+    if (this.bgmStarted || this.isGameOver || !this.bgm) return;
+
+    if (this.sound.locked) {
+      this.sound.unlock();
+      return;
+    }
+
+    if (!this.bgm.isPlaying) {
+      this.bgm.play();
+    }
+
+    if (this.bgm.isPlaying) {
+      this.bgmStarted = true;
+    }
+  }
+
+  shutdown() {
+    if (this.onAudioUnlocked) {
+      this.sound.off('unlocked', this.onAudioUnlocked);
+    }
+  }
+
+  ensureAudioUnlocked() {
+    if (this.sound.locked) {
+      this.sound.unlock();
+    }
+  }
+
+  playCastSound() {
+    this.ensureAudioUnlocked();
+    this.castSound.stop();
+    this.castSound.play();
+  }
+
+  playCatchSound() {
+    this.ensureAudioUnlocked();
+    this.catchSound.play();
   }
 
   setupTimers() {
@@ -1225,8 +1384,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   cast() {
-    if (this.timeLeft <= 0) return;
+    if (!this.isGameStarted || this.timeLeft <= 0) return;
 
+    this.playCastSound();
     this.isCasting = true;
     this.hookDepth = 80;
     this.updateHookPosition();
@@ -1407,6 +1567,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.isReeling = true;
     this.caughtFish = fish;
+    this.playCatchSound();
     fish.vx = 0;
     fish.vy = 0;
     fish.setDepth(HOOK_LINE_DEPTH);
@@ -1568,7 +1729,7 @@ export default class GameScene extends Phaser.Scene {
     const dt = delta / 1000;
     const bobTime = time * 0.001;
 
-    if (this.isCasting && !this.isReeling) {
+    if (this.isGameStarted && this.isCasting && !this.isReeling) {
       const speed = HOOK_SPEED * dt;
 
       if (this.cursors.left.isDown || this.touchInput.left) this.hook.x -= speed;
@@ -1579,7 +1740,7 @@ export default class GameScene extends Phaser.Scene {
       this.updateHookPosition();
     }
 
-    if (this.isReeling) {
+    if (this.isGameStarted && this.isReeling) {
       this.hookDepth -= REEL_SPEED * dt;
 
       if (this.caughtFish) {
@@ -1729,7 +1890,7 @@ export default class GameScene extends Phaser.Scene {
         }
       }
 
-      if (this.isCasting && !this.isReeling) {
+      if (this.isGameStarted && this.isCasting && !this.isReeling) {
         const dist = Phaser.Math.Distance.Between(this.hook.x, this.hook.y, fish.x, fish.y);
         if (dist < fish.creatureType.size * 0.55) {
           this.catchFish(fish);
@@ -1996,6 +2157,9 @@ export default class GameScene extends Phaser.Scene {
 
   endGame() {
     this.isGameOver = true;
+    if (this.bgm?.isPlaying) {
+      this.bgm.stop();
+    }
     this.isCasting = false;
     this.isReeling = false;
     this.apexPredatorThreatCount = 0;

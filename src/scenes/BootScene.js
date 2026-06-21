@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PILOT_TEXTURES } from '../config/creatureAssets.js';
+import { GAME_AUDIO_FILES } from '../config/gameAudio.js';
 
 const BOOT_LOAD_TIMEOUT_MS = 12000;
 
@@ -21,6 +22,10 @@ export default class BootScene extends Phaser.Scene {
 
     PILOT_TEXTURES.forEach(({ key, path }) => {
       this.load.image(key, path);
+    });
+
+    GAME_AUDIO_FILES.forEach(({ key, path }) => {
+      this.load.audio(key, path);
     });
 
     this.bootTimeout = this.time.delayedCall(BOOT_LOAD_TIMEOUT_MS, () => {
