@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { getTextureKeyForCreature, CRAYFISH_TEXTURE, FUR_SEAL_TEXTURE, JELLYFISH_TEXTURE, NORMAL_FISH_TEXTURE, RAY_TEXTURE, SEAHORSE_TEXTURE, SHRIMP_TEXTURE, SQUID_TEXTURE, STARFISH_TEXTURE, TURTLE_TEXTURE } from '../config/creatureAssets.js';
 import { GAME_AUDIO } from '../config/gameAudio.js';
-import { pickRandomQuizQuestion, QUIZ_CATEGORY_LABELS } from '../config/quizQuestions.js';
+import { getQuizQuestionType, pickRandomQuizQuestion, QUIZ_CATEGORY_LABELS } from '../config/quizQuestions.js';
 
 const GAME_WIDTH = 844;
 const WHALE_SHARK_SIZE = Math.round(GAME_WIDTH / 3);
@@ -101,9 +101,19 @@ const SHARK_KINDS = new Set(['shark', 'wobbegong', 'makoshark', 'sawshark', 'ham
 const INK_SPLASH_KINDS = new Set(['octopus', 'squid', 'giantsquid']);
 const INK_SPLASH_DEPTH = 40;
 const QUIZ_COOLDOWN_SECONDS = 20;
+const QUIZ_DRAW_CANVAS_WIDTH = 420;
+const QUIZ_DRAW_CANVAS_HEIGHT = 128;
+const QUIZ_DRAW_PANEL_Y = GAME_HEIGHT / 2 + 8;
+const QUIZ_DRAW_CANVAS_OFFSET_Y = 34;
+const QUIZ_DRAW_CANVAS_CENTER_X = GAME_WIDTH / 2;
+const QUIZ_DRAW_CANVAS_CENTER_Y = QUIZ_DRAW_PANEL_Y + QUIZ_DRAW_CANVAS_OFFSET_Y;
+const QUIZ_CATEGORY_TEXT_Y = -74;
+const QUIZ_TEXT_Y = -38;
+const QUIZ_DRAW_TEXT_RAISE = 15;
 const LIGHTNING_FREEZE_SECONDS = 2;
 const LIGHTNING_COOLDOWN_SECONDS = 20;
 const LIGHTNING_EFFECT_DEPTH = 3;
+const APEX_TSUNAMI_EFFECT_DEPTH = 4;
 const MIN_CATCH_SUCCESS_RATE = 0.9;
 /** 테스트용: 게임 시작 시 강제 등장 종 ('megalodon' | 'mosasaurus' | 'electric_eel' | 'mantis_shrimp' | 'whale_shark' | null) */
 const TEST_FIRST_CREATURE = null;
@@ -192,6 +202,10 @@ export default class GameScene extends Phaser.Scene {
     this.lightningEffectContainer = null;
     this.lightningEffectFlicker = null;
     this.lightningEffectEndTimer = null;
+    this.apexTsunamiContainer = null;
+    this.apexTsunamiEndTimer = null;
+    this.apexTsunamiAmbientEvent = null;
+    this.apexTsunamiAmbientContainer = null;
 
     this.createBackground();
     this.createDock();
@@ -668,6 +682,199 @@ export default class GameScene extends Phaser.Scene {
     this.lightningEffectContainer = container;
     this.lightningEffectEndTimer = this.time.delayedCall(durationSeconds * 1000, () => {
       this.clearLightningWaterEffect();
+    });
+  }
+
+  clearApexTsunamiEffects() {
+    if (this.apexTsunamiEndTimer) {
+      this.apexTsunamiEndTimer.remove(false);
+      this.apexTsunamiEndTimer = null;
+    }
+
+    if (this.apexTsunamiAmbientEvent) {
+      this.apexTsunamiAmbientEvent.remove(false);
+      this.apexTsunamiAmbientEvent = null;
+    }
+
+    if (this.apexTsunamiContainer) {
+      this.apexTsunamiContainer.destroy(true);
+      this.apexTsunamiContainer = null;
+    }
+
+    if (this.apexTsunamiAmbientContainer) {
+      this.apexTsunamiAmbientContainer.destroy(true);
+      this.apexTsunamiAmbientContainer = null;
+    }
+  }
+
+  drawTsunamiCrest(graphics, width, amplitude) {
+    graphics.clear();
+    graphics.fillStyle(0xffffff, 0.38);
+    graphics.beginPath();
+    graphics.moveTo(-40, amplitude * 1.6);
+    for (let x = -40; x <= width + 40; x += 22) {
+      graphics.lineTo(x, Math.sin(x * 0.05) * amplitude);
+    }
+    graphics.lineTo(width + 40, amplitude * 3.2);
+    graphics.lineTo(-40, amplitude * 3.2);
+    graphics.closePath();
+    graphics.fillPath();
+
+    graphics.fillStyle(0xffb3b3, 0.28);
+    graphics.beginPath();
+    graphics.moveTo(-40, amplitude * 0.4);
+    for (let x = -40; x <= width + 40; x += 18) {
+      graphics.lineTo(x, Math.sin(x * 0.06 + 1.2) * amplitude * 0.55);
+    }
+    graphics.lineTo(width + 40, amplitude * 2.2);
+    graphics.lineTo(-40, amplitude * 2.2);
+    graphics.closePath();
+    graphics.fillPath();
+  }
+
+  startApexTsunamiAmbient() {
+    if (this.apexTsunamiAmbientContainer) return;
+
+    const container = this.add.container(0, 0).setDepth(APEX_TSUNAMI_EFFECT_DEPTH);
+    const waveLayers = [];
+
+    for (let i = 0; i < 3; i += 1) {
+      const wave = this.add.graphics();
+      container.add(wave);
+      waveLayers.push(wave);
+    }
+
+    let phase = 0;
+    this.apexTsunamiAmbientEvent = this.time.addEvent({
+      delay: 55,
+      loop: true,
+      callback: () => {
+        phase += 0.1;
+        waveLayers.forEach((wave, i) => {
+          wave.clear();
+          const baseY = WATER_TOP + 6 + i * 12;
+          const amp = 5 + i * 2;
+          wave.lineStyle(2.5 - i * 0.5, 0xffffff, 0.14 - i * 0.035);
+          wave.beginPath();
+          wave.moveTo(0, baseY);
+          for (let x = 0; x <= GAME_WIDTH; x += 14) {
+            wave.lineTo(x, baseY + Math.sin(x * 0.028 + phase + i * 1.4) * amp);
+          }
+          wave.strokePath();
+        });
+      },
+    });
+
+    this.apexTsunamiAmbientContainer = container;
+  }
+
+  showApexTsunamiEffect() {
+    this.clearApexTsunamiEffects();
+
+    const waterHeight = SAND_TOP - WATER_TOP;
+    const container = this.add.container(0, 0).setDepth(APEX_TSUNAMI_EFFECT_DEPTH);
+
+    const surge = this.add.rectangle(
+      GAME_WIDTH / 2,
+      WATER_TOP + 24,
+      GAME_WIDTH + 40,
+      72,
+      0x8b1a1a,
+      0.45,
+    );
+    container.add(surge);
+    this.tweens.add({
+      targets: surge,
+      y: WATER_TOP + waterHeight * 0.42,
+      alpha: 0,
+      scaleY: 5.5,
+      duration: 1500,
+      ease: 'Quad.easeOut',
+    });
+
+    for (let i = 0; i < 4; i += 1) {
+      const crest = this.add.graphics();
+      this.drawTsunamiCrest(crest, GAME_WIDTH + 80, 28 + i * 6);
+      crest.setPosition(-GAME_WIDTH * 0.55 - i * 90, WATER_TOP + 4 + i * 22);
+      crest.setAlpha(0.42 - i * 0.06);
+      container.add(crest);
+      this.tweens.add({
+        targets: crest,
+        x: GAME_WIDTH * 1.15,
+        duration: 850 + i * 130,
+        ease: 'Sine.easeIn',
+      });
+    }
+
+    for (let i = 0; i < 3; i += 1) {
+      const crest = this.add.graphics();
+      this.drawTsunamiCrest(crest, GAME_WIDTH + 80, 22 + i * 5);
+      crest.setScale(-1, 1);
+      crest.setPosition(GAME_WIDTH * 1.55 + i * 70, WATER_TOP + 18 + i * 26);
+      crest.setAlpha(0.36 - i * 0.05);
+      container.add(crest);
+      this.tweens.add({
+        targets: crest,
+        x: -GAME_WIDTH * 0.2,
+        duration: 920 + i * 110,
+        ease: 'Sine.easeIn',
+      });
+    }
+
+    for (let i = 0; i < 16; i += 1) {
+      const foam = this.add.circle(
+        Phaser.Math.Between(20, GAME_WIDTH - 20),
+        WATER_TOP + Phaser.Math.Between(0, 28),
+        Phaser.Math.Between(3, 9),
+        0xffffff,
+        Phaser.Math.FloatBetween(0.35, 0.75),
+      );
+      foam.setBlendMode(Phaser.BlendModes.ADD);
+      container.add(foam);
+      this.tweens.add({
+        targets: foam,
+        y: foam.y + Phaser.Math.Between(40, waterHeight * 0.55),
+        x: foam.x + Phaser.Math.Between(-50, 50),
+        alpha: 0,
+        scale: Phaser.Math.FloatBetween(1.4, 2.2),
+        duration: Phaser.Math.Between(700, 1200),
+        ease: 'Quad.easeOut',
+      });
+    }
+
+    this.cameras.main.shake(900, 0.011);
+
+    if (this.fisherman) {
+      this.tweens.add({
+        targets: this.fisherman,
+        x: { from: 0, to: 5 },
+        duration: 70,
+        yoyo: true,
+        repeat: 8,
+        ease: 'Sine.easeInOut',
+        onComplete: () => {
+          this.fisherman.x = 0;
+        },
+      });
+    }
+
+    this.apexTsunamiContainer = container;
+    this.apexTsunamiEndTimer = this.time.delayedCall(1700, () => {
+      this.tweens.add({
+        targets: container,
+        alpha: 0,
+        duration: 350,
+        onComplete: () => {
+          if (this.apexTsunamiContainer === container) {
+            container.destroy(true);
+            this.apexTsunamiContainer = null;
+          }
+          if (this.apexPredatorThreatCount > 0) {
+            this.startApexTsunamiAmbient();
+          }
+        },
+      });
+      this.apexTsunamiEndTimer = null;
     });
   }
 
@@ -1961,6 +2168,7 @@ export default class GameScene extends Phaser.Scene {
     if (wasEmpty) {
       this.showMessage(APEX_PREDATOR_SPAWN_MESSAGES[kind] ?? APEX_PREDATOR_SPAWN_MESSAGES.megalodon, 2800);
       this.setApexPredatorWaterTint(true);
+      this.showApexTsunamiEffect();
     }
   }
 
@@ -1970,6 +2178,7 @@ export default class GameScene extends Phaser.Scene {
     this.apexPredatorThreatCount -= 1;
     if (this.apexPredatorThreatCount === 0) {
       this.setApexPredatorWaterTint(false);
+      this.clearApexTsunamiEffects();
     }
   }
 
@@ -2483,6 +2692,291 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  teardownDrawingQuizInput() {
+    if (this.quizDrawingPointerMoveHandler) {
+      this.input.off('pointermove', this.quizDrawingPointerMoveHandler);
+      this.quizDrawingPointerMoveHandler = null;
+    }
+    if (this.quizDrawingPointerUpHandler) {
+      this.input.off('pointerup', this.quizDrawingPointerUpHandler);
+      this.quizDrawingPointerUpHandler = null;
+    }
+    if (this.quizDrawingPointerUpOutsideHandler) {
+      this.input.off('pointerupoutside', this.quizDrawingPointerUpOutsideHandler);
+      this.quizDrawingPointerUpOutsideHandler = null;
+    }
+    this.isDrawingQuizActive = false;
+    this.quizDrawingState = null;
+  }
+
+  clearQuizInteraction() {
+    this.teardownDrawingQuizInput();
+
+    if (this.quizButtons) {
+      this.quizButtons.forEach(({ button }) => button.destroy());
+      this.quizButtons = [];
+    }
+
+    if (this.quizButtonContainer) {
+      this.quizButtonContainer.removeAll(true);
+    }
+
+    if (this.quizDrawBrush) {
+      this.quizDrawBrush.destroy();
+      this.quizDrawBrush = null;
+    }
+
+    if (this.quizDrawingLayer) {
+      this.quizDrawingLayer.destroy(true);
+      this.quizDrawingLayer = null;
+    }
+
+    this.quizDrawingRenderTexture = null;
+    this.quizDrawCanvasCenter = null;
+    this.quizDrawCanvasBounds = null;
+    this.quizDrawingHint = null;
+    this.quizDrawButtons = [];
+  }
+
+  clearDrawingQuizCanvas() {
+    if (this.quizDrawingRenderTexture) {
+      this.quizDrawingRenderTexture.clear();
+    }
+    if (this.quizDrawingHint) {
+      this.quizDrawingHint.setVisible(true);
+    }
+  }
+
+  clampQuizDrawPoint(x, y) {
+    const halfW = QUIZ_DRAW_CANVAS_WIDTH / 2;
+    const halfH = QUIZ_DRAW_CANVAS_HEIGHT / 2;
+    return {
+      x: Phaser.Math.Clamp(x, -halfW, halfW),
+      y: Phaser.Math.Clamp(y, -halfH, halfH),
+    };
+  }
+
+  getQuizDrawPointFromPointer(pointer) {
+    if (!this.quizDrawCanvasCenter) {
+      return { x: 0, y: 0 };
+    }
+
+    return this.clampQuizDrawPoint(
+      pointer.x - this.quizDrawCanvasCenter.x,
+      pointer.y - this.quizDrawCanvasCenter.y,
+    );
+  }
+
+  toQuizDrawTexturePoint(x, y) {
+    return {
+      x: x + QUIZ_DRAW_CANVAS_WIDTH / 2,
+      y: y + QUIZ_DRAW_CANVAS_HEIGHT / 2,
+    };
+  }
+
+  drawQuizStroke(fromX, fromY, toX, toY) {
+    if (!this.quizDrawingRenderTexture || !this.quizDrawBrush) return;
+
+    const start = this.toQuizDrawTexturePoint(fromX, fromY);
+    const end = this.toQuizDrawTexturePoint(toX, toY);
+
+    this.quizDrawBrush.clear();
+    this.quizDrawBrush.lineStyle(3, 0x212529, 1);
+    this.quizDrawBrush.lineBetween(start.x, start.y, end.x, end.y);
+    this.quizDrawingRenderTexture.draw(this.quizDrawBrush, 0, 0);
+  }
+
+  handleDrawingPointerDown(pointer) {
+    if (!this.isQuizActive || this.isQuizLocked || !this.quizDrawCanvasBounds) return;
+    if (!Phaser.Geom.Rectangle.Contains(this.quizDrawCanvasBounds, pointer.x, pointer.y)) return;
+
+    if (this.quizDrawingHint?.visible) {
+      this.quizDrawingHint.setVisible(false);
+    }
+
+    const point = this.getQuizDrawPointFromPointer(pointer);
+    this.quizDrawingState = {
+      isDrawing: true,
+      lastX: point.x,
+      lastY: point.y,
+    };
+    this.isDrawingQuizActive = true;
+
+    if (!this.quizDrawingPointerMoveHandler) {
+      this.quizDrawingPointerMoveHandler = (activePointer) => {
+        this.handleDrawingPointerMove(activePointer);
+      };
+      this.input.on('pointermove', this.quizDrawingPointerMoveHandler);
+    }
+  }
+
+  handleDrawingPointerMove(pointer) {
+    if (!this.quizDrawingState?.isDrawing || !this.quizDrawingRenderTexture) return;
+
+    const point = this.getQuizDrawPointFromPointer(pointer);
+    this.drawQuizStroke(
+      this.quizDrawingState.lastX,
+      this.quizDrawingState.lastY,
+      point.x,
+      point.y,
+    );
+    this.quizDrawingState.lastX = point.x;
+    this.quizDrawingState.lastY = point.y;
+  }
+
+  handleDrawingPointerUp() {
+    if (this.quizDrawingState) {
+      this.quizDrawingState.isDrawing = false;
+    }
+    if (this.quizDrawingPointerMoveHandler) {
+      this.input.off('pointermove', this.quizDrawingPointerMoveHandler);
+      this.quizDrawingPointerMoveHandler = null;
+    }
+  }
+
+  setQuizDrawButtonsEnabled(enabled) {
+    if (!this.quizDrawButtons) return;
+
+    this.quizDrawButtons.forEach(({ button, bg }) => {
+      if (enabled) {
+        button.setInteractive({ useHandCursor: true });
+        bg.setAlpha(1);
+      } else {
+        button.disableInteractive();
+        bg.setAlpha(0.45);
+      }
+    });
+  }
+
+  buildDrawingQuiz() {
+    this.clearQuizInteraction();
+
+    if (this.quizPanelBg) {
+      this.quizPanelBg.setSize(560, 360);
+    }
+    if (this.quizPanel) {
+      this.quizPanel.setY(QUIZ_DRAW_PANEL_Y);
+    }
+    if (this.quizFeedback) {
+      this.quizFeedback.setY(148);
+    }
+    if (this.quizCategoryText) {
+      this.quizCategoryText.setY(QUIZ_CATEGORY_TEXT_Y - QUIZ_DRAW_TEXT_RAISE);
+    }
+    if (this.quizText) {
+      this.quizText.setY(QUIZ_TEXT_Y - QUIZ_DRAW_TEXT_RAISE);
+    }
+
+    this.quizDrawCanvasCenter = {
+      x: QUIZ_DRAW_CANVAS_CENTER_X,
+      y: QUIZ_DRAW_CANVAS_CENTER_Y,
+    };
+    this.quizDrawCanvasBounds = new Phaser.Geom.Rectangle(
+      QUIZ_DRAW_CANVAS_CENTER_X - QUIZ_DRAW_CANVAS_WIDTH / 2,
+      QUIZ_DRAW_CANVAS_CENTER_Y - QUIZ_DRAW_CANVAS_HEIGHT / 2,
+      QUIZ_DRAW_CANVAS_WIDTH,
+      QUIZ_DRAW_CANVAS_HEIGHT,
+    );
+
+    this.quizDrawingLayer = this.add.container(0, 0).setDepth(103);
+
+    const canvasBg = this.add.rectangle(
+      QUIZ_DRAW_CANVAS_CENTER_X,
+      QUIZ_DRAW_CANVAS_CENTER_Y,
+      QUIZ_DRAW_CANVAS_WIDTH,
+      QUIZ_DRAW_CANVAS_HEIGHT,
+      0xffffff,
+      1,
+    );
+    canvasBg.setStrokeStyle(2, 0x868e96);
+    canvasBg.setInteractive({ useHandCursor: true });
+
+    this.quizDrawingRenderTexture = this.add.renderTexture(
+      QUIZ_DRAW_CANVAS_CENTER_X,
+      QUIZ_DRAW_CANVAS_CENTER_Y,
+      QUIZ_DRAW_CANVAS_WIDTH,
+      QUIZ_DRAW_CANVAS_HEIGHT,
+    );
+    this.quizDrawingRenderTexture.setOrigin(0.5, 0.5);
+
+    const canvasHint = this.add.text(QUIZ_DRAW_CANVAS_CENTER_X, QUIZ_DRAW_CANVAS_CENTER_Y, '여기에 그려 보세요', {
+      fontFamily: 'Segoe UI, sans-serif',
+      fontSize: '16px',
+      color: '#adb5bd',
+    }).setOrigin(0.5);
+    this.quizDrawingHint = canvasHint;
+
+    this.quizDrawBrush = this.make.graphics({ add: false });
+    this.quizDrawingLayer.add([canvasBg, this.quizDrawingRenderTexture, canvasHint]);
+
+    canvasBg.on('pointerdown', (pointer) => this.handleDrawingPointerDown(pointer));
+
+    this.quizDrawingPointerUpHandler = () => this.handleDrawingPointerUp();
+    this.quizDrawingPointerUpOutsideHandler = () => this.handleDrawingPointerUp();
+    this.input.on('pointerup', this.quizDrawingPointerUpHandler);
+    this.input.on('pointerupoutside', this.quizDrawingPointerUpOutsideHandler);
+
+    const clearButton = this.createQuizPanelButton(-95, 108, '지우기', 0x868e96, () => {
+      this.clearDrawingQuizCanvas();
+    });
+    const submitButton = this.createQuizPanelButton(95, 108, '확인', 0x40c057, () => {
+      this.submitDrawingQuiz();
+    });
+
+    this.quizButtonContainer.add([clearButton, submitButton]);
+    this.quizDrawButtons = [
+      { button: clearButton, bg: clearButton.list[0] },
+      { button: submitButton, bg: submitButton.list[0] },
+    ];
+    this.quizButtons = [];
+  }
+
+  createQuizPanelButton(x, y, label, color, onPress) {
+    const button = this.add.container(x, y);
+    const bg = this.add.rectangle(0, 0, 150, 42, color, 1);
+    bg.setStrokeStyle(2, 0xffffff);
+    const text = this.add.text(0, 0, label, {
+      fontFamily: 'Segoe UI, sans-serif',
+      fontSize: '22px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+
+    button.add([bg, text]);
+    button.setSize(150, 42);
+    button.setInteractive({ useHandCursor: true });
+
+    button.on('pointerover', () => {
+      if (!this.isQuizLocked) bg.setAlpha(0.88);
+    });
+    button.on('pointerout', () => {
+      if (!this.isQuizLocked) bg.setAlpha(1);
+    });
+    button.on('pointerdown', () => {
+      if (!this.isQuizActive || this.isQuizLocked) return;
+      onPress();
+    });
+
+    return button;
+  }
+
+  completeQuizSuccess(message) {
+    this.playQuizCorrectSound();
+    this.quizFeedback.setText(message);
+    this.quizFeedback.setColor('#69db7c');
+    this.isQuizActive = false;
+    this.clearQuizCooldownTimer();
+    this.clearQuizInteraction();
+
+    this.time.delayedCall(900, () => {
+      this.scene.restart();
+    });
+  }
+
+  submitDrawingQuiz() {
+    if (!this.isQuizActive || this.isQuizLocked) return;
+    this.completeQuizSuccess('완료! 다시 낚시를 시작해요');
+  }
+
   setQuizButtonsEnabled(enabled) {
     if (!this.quizButtons) return;
 
@@ -2508,6 +3002,7 @@ export default class GameScene extends Phaser.Scene {
     this.isQuizLocked = true;
     this.quizCooldownLeft = QUIZ_COOLDOWN_SECONDS;
     this.setQuizButtonsEnabled(false);
+    this.setQuizDrawButtonsEnabled(false);
     this.updateQuizCooldownFeedback();
 
     this.clearQuizCooldownTimer();
@@ -2530,9 +3025,11 @@ export default class GameScene extends Phaser.Scene {
     this.isQuizLocked = false;
     this.quizCooldownLeft = 0;
     this.setQuizButtonsEnabled(true);
+    this.setQuizDrawButtonsEnabled(true);
 
     if (this.quizFeedback) {
-      this.quizFeedback.setText('정답을 골라 보세요');
+      const isDraw = getQuizQuestionType(this.quizQuestion) === 'draw';
+      this.quizFeedback.setText(isDraw ? '그림을 그리고 확인을 눌러 주세요' : '정답을 골라 보세요');
       this.quizFeedback.setColor('#ced4da');
     }
   }
@@ -2542,15 +3039,41 @@ export default class GameScene extends Phaser.Scene {
     this.isQuizLocked = false;
     this.quizCooldownLeft = 0;
     this.clearQuizCooldownTimer();
+    this.clearQuizInteraction();
 
     const categoryLabel = QUIZ_CATEGORY_LABELS[this.quizQuestion.category] ?? '';
+    const isDraw = getQuizQuestionType(this.quizQuestion) === 'draw';
+
     this.quizCategoryText.setText(`[${categoryLabel}]`);
     this.quizText.setText(this.quizQuestion.prompt);
+
+    if (isDraw) {
+      this.quizFeedback.setText('그림을 그리고 확인을 눌러 주세요');
+      this.quizFeedback.setColor('#ced4da');
+      this.buildDrawingQuiz();
+      return;
+    }
+
+    if (this.quizPanelBg) {
+      this.quizPanelBg.setSize(560, 312);
+    }
+    if (this.quizPanel) {
+      this.quizPanel.setY(GAME_HEIGHT / 2 + 20);
+    }
+    if (this.quizFeedback) {
+      this.quizFeedback.setY(132);
+    }
+    if (this.quizCategoryText) {
+      this.quizCategoryText.setY(QUIZ_CATEGORY_TEXT_Y);
+    }
+    if (this.quizText) {
+      this.quizText.setY(QUIZ_TEXT_Y);
+    }
+
     this.quizFeedback.setText('정답을 골라 보세요');
     this.quizFeedback.setColor('#ced4da');
-
-    this.quizButtons.forEach(({ button }) => button.destroy());
     this.quizButtons = [];
+    this.quizDrawButtons = [];
     this.buildQuizButtons(this.quizQuestion.options);
   }
 
@@ -2602,6 +3125,7 @@ export default class GameScene extends Phaser.Scene {
     this.clearQuizCooldownTimer();
 
     if (this.quizPanel) {
+      this.clearQuizInteraction();
       this.quizPanel.destroy(true);
     }
 
@@ -2610,6 +3134,8 @@ export default class GameScene extends Phaser.Scene {
 
     const panelBg = this.add.rectangle(0, 0, 560, 312, 0x1c314a, 0.95);
     panelBg.setStrokeStyle(3, 0xffd43b);
+    panelBg.setInteractive({ useHandCursor: false });
+    this.quizPanelBg = panelBg;
 
     const quizTitle = this.add.text(0, -102, '다시 낚시하려면 문제를 풀어요!', {
       fontFamily: 'Segoe UI, sans-serif',
@@ -2617,13 +3143,13 @@ export default class GameScene extends Phaser.Scene {
       color: '#ffffff',
     }).setOrigin(0.5);
 
-    this.quizCategoryText = this.add.text(0, -74, '', {
+    this.quizCategoryText = this.add.text(0, QUIZ_CATEGORY_TEXT_Y, '', {
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: '15px',
       color: '#91a7ff',
     }).setOrigin(0.5);
 
-    this.quizText = this.add.text(0, -38, '', {
+    this.quizText = this.add.text(0, QUIZ_TEXT_Y, '', {
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: '28px',
       color: '#ffd43b',
@@ -2650,6 +3176,7 @@ export default class GameScene extends Phaser.Scene {
       this.quizFeedback,
     ]);
     this.quizButtons = [];
+    this.quizDrawButtons = [];
 
     this.presentQuizQuestion();
   }
@@ -2659,15 +3186,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (selected === this.quizQuestion.answer) {
       buttonBg.setFillStyle(0x40c057, 1);
-      this.playQuizCorrectSound();
-      this.quizFeedback.setText('정답! 다시 낚시를 시작해요');
-      this.quizFeedback.setColor('#69db7c');
-      this.isQuizActive = false;
-      this.clearQuizCooldownTimer();
-
-      this.time.delayedCall(900, () => {
-        this.scene.restart();
-      });
+      this.completeQuizSuccess('정답! 다시 낚시를 시작해요');
       return;
     }
 
@@ -2686,6 +3205,7 @@ export default class GameScene extends Phaser.Scene {
     this.isGameOver = true;
     this.clearLightningCooldownTimer();
     this.clearLightningWaterEffect();
+    this.clearApexTsunamiEffects();
     this.creatureFreezeRemaining = 0;
     if (this.bgm?.isPlaying) {
       this.bgm.stop();

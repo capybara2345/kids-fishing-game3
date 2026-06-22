@@ -1,13 +1,28 @@
-export const QUIZ_CATEGORY_LIST = ['math', 'korean', 'english', 'random'];
+export const QUIZ_CATEGORY_LIST = ['math', 'korean', 'english', 'random', 'draw'];
 
 export const QUIZ_CATEGORY_LABELS = {
   math: '수학',
   korean: '한글',
   english: '영어',
   random: '랜덤',
+  draw: '그림',
 };
 
-/** @typedef {{ prompt: string, answer: string, options: string[] }} QuizQuestion */
+/**
+ * @typedef {Object} MultipleChoiceQuizQuestion
+ * @property {'multipleChoice'} [questionType]
+ * @property {string} prompt
+ * @property {string} answer
+ * @property {string[]} options
+ */
+
+/**
+ * @typedef {Object} DrawQuizQuestion
+ * @property {'draw'} questionType
+ * @property {string} prompt
+ */
+
+/** @typedef {MultipleChoiceQuizQuestion | DrawQuizQuestion} QuizQuestion */
 
 /** @type {QuizQuestion[]} */
 export const MATH_QUESTIONS = [
@@ -101,7 +116,7 @@ export const KOREAN_QUESTIONS = [
   { prompt: '장미는 무슨 색일까?', answer: '빨간색', options: ['빨간색', '초록색', '파란색', '검은색'] },
   { prompt: '풀은 무슨 색?', answer: '초록색', options: ['초록색', '빨간색', '노란색', '하얀색'] },
   { prompt: '아침에 먹는 밥은?', answer: '아침', options: ['아침', '점심', '저녁', '간식'] },
-  { prompt: '학교에서 가는 곳은?', answer: '학교', options: ['교실', '바다', '우주', '동굴'] },
+  { prompt: '학교에서 가는 곳은?', answer: '교실', options: ['교실', '바다', '우주', '동굴'] },
   { prompt: '비가 올 때 쓰는 것은?', answer: '우산', options: ['우산', '모자', '신발', '장갑'] },
   { prompt: '손을 깨끗이 할 때 쓰는 것은?', answer: '비누', options: ['비누', '연필', '공', '책'] },
   { prompt: '글을 쓸 때 쓰는 것은?', answer: '연필', options: ['연필', '숟가락', '빗', '우산'] },
@@ -335,21 +350,50 @@ function buildRandomQuestions() {
 /** @type {QuizQuestion[]} */
 export const RANDOM_QUESTIONS = buildRandomQuestions();
 
+/** @type {DrawQuizQuestion[]} */
+export const DRAW_QUESTIONS = [
+  { questionType: 'draw', prompt: '나무를 그리세요.' },
+  { questionType: 'draw', prompt: '집을 그리세요.' },
+  { questionType: 'draw', prompt: '해를 그리세요.' },
+  { questionType: 'draw', prompt: '물고기를 그리세요.' },
+  { questionType: 'draw', prompt: '구름을 그리세요.' },
+  { questionType: 'draw', prompt: '꽃을 그리세요.' },
+  { questionType: 'draw', prompt: '자동차를 그리세요.' },
+  { questionType: 'draw', prompt: '하트를 그리세요.' },
+  { questionType: 'draw', prompt: '배를 그리세요.' },
+  { questionType: 'draw', prompt: '별을 그리세요.' },
+];
+
 const QUESTION_POOLS = {
   math: MATH_QUESTIONS,
   korean: KOREAN_QUESTIONS,
   english: ENGLISH_QUESTIONS,
   random: RANDOM_QUESTIONS,
+  draw: DRAW_QUESTIONS,
 };
+
+export function getQuizQuestionType(question) {
+  return question.questionType ?? 'multipleChoice';
+}
 
 export function pickRandomQuizQuestion() {
   const category = QUIZ_CATEGORY_LIST[Math.floor(Math.random() * QUIZ_CATEGORY_LIST.length)];
   const pool = QUESTION_POOLS[category];
   const question = pool[Math.floor(Math.random() * pool.length)];
+  const questionType = getQuizQuestionType(question);
+
+  if (questionType === 'draw') {
+    return {
+      category,
+      ...question,
+      questionType: 'draw',
+    };
+  }
 
   return {
     category,
     ...question,
+    questionType: 'multipleChoice',
     options: shuffleOptions(question.options),
   };
 }
