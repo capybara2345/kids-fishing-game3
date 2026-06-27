@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_AUDIO, stopGameBgm } from '../config/gameAudio.js';
+import RestartQuizPanel, { setupQuizSounds } from '../systems/RestartQuizPanel.js';
 import {
   FISHING2_FISH,
   FISHING2_LAYOUT,
@@ -7,6 +8,7 @@ import {
   FISHING2_TIMINGS,
   getFishing2TrackLayout,
   getFish2DisplayHeight,
+  getFish2MoveSpeed,
   pickRandomFish2,
 } from '../config/fishingGame2Config.js';
 
@@ -21,7 +23,6 @@ const DOCK_COLOR_MAIN = 0x8d6e63;
 const DOCK_COLOR_EDGE = 0x6d4c41;
 const CATCH_PILE_BASE_X = 98;
 const CATCH_PILE_BASE_Y = DOCK_TOP + 48;
-const CATCH_PILE_STACK_OFFSET_Y = 8;
 const CATCH_FISH_DISPLAY_WIDTH = 14;
 const MAX_CAST_DISTANCE = 420;
 const MIN_CAST_DISTANCE = 120;
@@ -49,12 +50,22 @@ export default class GameScene2 extends Phaser.Scene {
     this.fishMoveTimer = 0;
     this.isFightHolding = false;
     this.caughtFishCount = 0;
+    this.isQuizActive = false;
 
     this.setupAudio();
+    setupQuizSounds(this);
     this.buildWorld();
     this.buildHud();
     this.buildFightUi();
     this.bindInput();
+
+    this.retryQuiz = new RestartQuizPanel(this, {
+      panelTitle: '다시 낚시하려면 문제를 풀어요!',
+      successMessage: '정답! 다시 던져 보세요',
+      drawSuccessMessage: '완료! 다시 던져 보세요',
+      onSuccess: () => this.resumeAfterQuiz(),
+    });
+
     this.setPhase(FISHING2_PHASE.IDLE);
     this.startBgm();
   }
@@ -298,6 +309,8 @@ export default class GameScene2 extends Phaser.Scene {
   }
 
   onPointerDown() {
+    if (this.isQuizActive) return;
+
     if (this.phase === FISHING2_PHASE.FIGHTING) {
       this.isFightHolding = true;
       return;
@@ -313,6 +326,8 @@ export default class GameScene2 extends Phaser.Scene {
   }
 
   onPointerUp() {
+    if (this.isQuizActive) return;
+
     this.isFightHolding = false;
     if (this.phase === FISHING2_PHASE.CHARGING) {
       this.releaseCast();
@@ -378,11 +393,12 @@ export default class GameScene2 extends Phaser.Scene {
         break;
       case FISHING2_PHASE.ESCAPED:
         this.statusText.setText('물고기가 도망갔어요...');
+        this.bobber.setVisible(false);
         this.biteMark.setVisible(false);
         this.tweens.killTweensOf(this.biteMark);
         this.playFishEscapeSound();
         this.time.delayedCall(FISHING2_TIMINGS.escapedDisplayMs, () => {
-          if (this.phase === FISHING2_PHASE.ESCAPED) this.setPhase(FISHING2_PHASE.IDLE);
+          if (this.phase === FISHING2_PHASE.ESCAPED) this.showRetryQuiz();
         });
         break;
       default:
@@ -509,6 +525,22 @@ export default class GameScene2 extends Phaser.Scene {
     }
   }
 
+  showRetryQuiz() {
+    this.isQuizActive = true;
+    this.bobber.setVisible(false);
+    this.biteMark.setVisible(false);
+    this.fightUi.setVisible(false);
+    this.drawRodLine(FISHERMAN_X, DOCK_TOP - 20);
+    this.statusText.setText('문제를 풀면 다시 낚시할 수 있어요');
+    this.retryQuiz.show();
+  }
+
+  resumeAfterQuiz() {
+    this.isQuizActive = false;
+    this.retryQuiz?.destroy();
+    this.setPhase(FISHING2_PHASE.IDLE);
+  }
+
   catchFish() {
     this.score += this.currentFish.points;
     this.scoreText.setText(`점수: ${this.score}`);
@@ -518,8 +550,11 @@ export default class GameScene2 extends Phaser.Scene {
 
   addCaughtFishToPile(fish) {
     const index = this.caughtFishCount;
-    const x = CATCH_PILE_BASE_X;
-    const y = CATCH_PILE_BASE_Y - index * CATCH_PILE_STACK_OFFSET_Y;
+    const perColumn = FISHING2_LAYOUT.catchPilePerColumn;
+    const column = Math.floor(index / perColumn);
+    const row = index % perColumn;
+    const x = CATCH_PILE_BASE_X - column * FISHING2_LAYOUT.catchPileColumnOffsetX;
+    const y = CATCH_PILE_BASE_Y - row * FISHING2_LAYOUT.catchPileStackOffsetY;
     const targetWidth = CATCH_FISH_DISPLAY_WIDTH;
     const targetHeight = getFish2DisplayHeight(fish, targetWidth);
 
@@ -604,7 +639,7 @@ export default class GameScene2 extends Phaser.Scene {
     if (this.fishMoveTimer >= this.fishMoveDelay) {
       this.scheduleNextFishTarget();
     }
-    const fishSpeed = 140 * (this.currentFish?.speed ?? 1);
+    const fishSpeed = FISHING2_LAYOUT.fishMoveSpeed * getFish2MoveSpeed(this.currentFish ?? FISHING2_FISH[0]);
     this.fishTrackY = Phaser.Math.Linear(this.fishTrackY, this.fishTargetY, fishSpeed * dt / 120);
     this.fishIcon.y = this.fishTrackY;
 
@@ -631,6 +666,8 @@ export default class GameScene2 extends Phaser.Scene {
     if (this.onBgmUnlocked) {
       this.sound.off('unlocked', this.onBgmUnlocked);
     }
+    this.retryQuiz?.clearRestartDelayTimer();
+    this.retryQuiz?.destroy();
     stopGameBgm(this.sound);
   }
 }

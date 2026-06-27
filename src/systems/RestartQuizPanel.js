@@ -362,6 +362,7 @@ export default class RestartQuizPanel {
     this.restartDelayTimer = window.setTimeout(() => {
       this.restartDelayTimer = null;
       try {
+        this.destroy();
         restart();
       } catch (error) {
         console.error('[RestartQuizPanel] restart failed:', error);
