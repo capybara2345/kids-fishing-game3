@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_AUDIO } from '../config/gameAudio.js';
+import { GAME_AUDIO, stopGameBgm } from '../config/gameAudio.js';
 import {
   GROW_PLAYER,
   GROW_TIMINGS,
@@ -112,7 +112,8 @@ export default class GameScene3 extends Phaser.Scene {
     });
 
     if (this.sound.locked) {
-      this.sound.once('unlocked', () => this.bgm?.play());
+      this.onBgmUnlocked = () => this.bgm?.play();
+      this.sound.once('unlocked', this.onBgmUnlocked);
     } else {
       this.bgm?.play();
     }
@@ -513,6 +514,10 @@ export default class GameScene3 extends Phaser.Scene {
       color: '#ced4da',
     }).setDepth(20).setInteractive({ useHandCursor: true });
     this.menuButton.on('pointerdown', () => {
+      stopGameBgm(this.sound);
+      if (this.onBgmUnlocked) {
+        this.sound.off('unlocked', this.onBgmUnlocked);
+      }
       this.scene.start('MenuScene');
     });
   }
@@ -660,6 +665,9 @@ export default class GameScene3 extends Phaser.Scene {
     this.clearTouchInput();
     this.restartQuiz?.clearRestartDelayTimer();
     this.restartQuiz?.destroy();
-    this.bgm?.stop();
+    if (this.onBgmUnlocked) {
+      this.sound.off('unlocked', this.onBgmUnlocked);
+    }
+    stopGameBgm(this.sound);
   }
 }

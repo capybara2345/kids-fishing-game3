@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { stopGameBgm } from '../config/gameAudio.js';
 
 const GAME_WIDTH = 844;
 const GAME_HEIGHT = 390;
@@ -9,6 +10,8 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   create() {
+    stopGameBgm(this.sound);
+
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x0b1d33);
 
     this.add.text(GAME_WIDTH / 2, 52, '낚시 게임', {

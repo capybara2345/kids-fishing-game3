@@ -11,3 +11,14 @@ export const GAME_AUDIO = {
 };
 
 export const GAME_AUDIO_FILES = Object.values(GAME_AUDIO);
+
+/** 게임 BGM 정지 (메뉴 복귀·씬 종료 시) */
+export function stopGameBgm(soundManager) {
+  if (!soundManager) return;
+
+  const key = GAME_AUDIO.bgm.key;
+  if (typeof soundManager.stopByKey === 'function') {
+    soundManager.stopByKey(key);
+  }
+  soundManager.get(key)?.stop();
+}

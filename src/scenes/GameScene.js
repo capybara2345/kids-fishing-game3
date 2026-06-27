@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { getTextureKeyForCreature, CRAYFISH_TEXTURE, FUR_SEAL_TEXTURE, JELLYFISH_TEXTURE, NORMAL_FISH_TEXTURE, RAY_TEXTURE, SEAHORSE_TEXTURE, SHRIMP_TEXTURE, SQUID_TEXTURE, STARFISH_TEXTURE, TURTLE_TEXTURE } from '../config/creatureAssets.js';
-import { GAME_AUDIO } from '../config/gameAudio.js';
+import { GAME_AUDIO, stopGameBgm } from '../config/gameAudio.js';
 import { getQuizQuestionType, pickRandomQuizQuestion } from '../config/quizQuestions.js';
 
 const GAME_WIDTH = 844;
@@ -2005,6 +2005,7 @@ export default class GameScene extends Phaser.Scene {
   shutdown() {
     this.clearQuizRestartTimer();
     this.clearQuizCooldownTimer();
+    stopGameBgm(this.sound);
     if (this.onAudioUnlocked) {
       this.sound.off('unlocked', this.onAudioUnlocked);
     }
