@@ -2,6 +2,8 @@
 export const GAME_AUDIO = {
   bgm: { key: 'bgm', path: 'assets/sounds/bgm.mp3', volume: 0.38, loop: true },
   cast: { key: 'cast', path: 'assets/sounds/cast.wav', volume: 0.55 },
+  bite: { key: 'bite', path: 'assets/sounds/bite.wav', volume: 0.6 },
+  fishEscape: { key: 'fish_escape', path: 'assets/sounds/fish_escape.wav', volume: 0.56 },
   catch: { key: 'catch', path: 'assets/sounds/catch.wav', volume: 0.62 },
   quizCorrect: { key: 'quiz_correct', path: 'assets/sounds/quiz_correct.wav', volume: 0.58 },
   quizWrong: { key: 'quiz_wrong', path: 'assets/sounds/quiz_wrong.wav', volume: 0.52 },

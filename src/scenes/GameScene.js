@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { getTextureKeyForCreature, CRAYFISH_TEXTURE, FUR_SEAL_TEXTURE, JELLYFISH_TEXTURE, NORMAL_FISH_TEXTURE, RAY_TEXTURE, SEAHORSE_TEXTURE, SHRIMP_TEXTURE, SQUID_TEXTURE, STARFISH_TEXTURE, TURTLE_TEXTURE } from '../config/creatureAssets.js';
 import { GAME_AUDIO } from '../config/gameAudio.js';
-import { getQuizQuestionType, pickRandomQuizQuestion, QUIZ_CATEGORY_LABELS } from '../config/quizQuestions.js';
+import { getQuizQuestionType, pickRandomQuizQuestion } from '../config/quizQuestions.js';
 
 const GAME_WIDTH = 844;
 const WHALE_SHARK_SIZE = Math.round(GAME_WIDTH / 3);
@@ -107,8 +107,7 @@ const QUIZ_DRAW_PANEL_Y = GAME_HEIGHT / 2 + 8;
 const QUIZ_DRAW_CANVAS_OFFSET_Y = 34;
 const QUIZ_DRAW_CANVAS_CENTER_X = GAME_WIDTH / 2;
 const QUIZ_DRAW_CANVAS_CENTER_Y = QUIZ_DRAW_PANEL_Y + QUIZ_DRAW_CANVAS_OFFSET_Y;
-const QUIZ_CATEGORY_TEXT_Y = -74;
-const QUIZ_TEXT_Y = -38;
+const QUIZ_TEXT_Y = -58;
 const QUIZ_DRAW_TEXT_RAISE = 15;
 const LIGHTNING_FREEZE_SECONDS = 2;
 const LIGHTNING_COOLDOWN_SECONDS = 20;
@@ -191,6 +190,7 @@ export default class GameScene extends Phaser.Scene {
     this.isQuizLocked = false;
     this.quizCooldownLeft = 0;
     this.quizCooldownTimer = null;
+    this.quizRestartTimer = null;
     this.hookDepth = 0;
     this.apexPredatorThreatCount = 0;
     this.apexPredatorWaterTween = null;
@@ -2003,6 +2003,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    this.clearQuizRestartTimer();
+    this.clearQuizCooldownTimer();
     if (this.onAudioUnlocked) {
       this.sound.off('unlocked', this.onAudioUnlocked);
     }
@@ -2027,16 +2029,16 @@ export default class GameScene extends Phaser.Scene {
 
   playQuizCorrectSound() {
     this.ensureAudioUnlocked();
-    this.quizWrongSound.stop();
-    this.quizCorrectSound.stop();
-    this.quizCorrectSound.play();
+    this.quizWrongSound?.stop();
+    this.quizCorrectSound?.stop();
+    this.quizCorrectSound?.play();
   }
 
   playQuizWrongSound() {
     this.ensureAudioUnlocked();
-    this.quizCorrectSound.stop();
-    this.quizWrongSound.stop();
-    this.quizWrongSound.play();
+    this.quizCorrectSound?.stop();
+    this.quizWrongSound?.stop();
+    this.quizWrongSound?.play();
   }
 
   playApexPredatorSpawnSound() {
@@ -2860,9 +2862,6 @@ export default class GameScene extends Phaser.Scene {
     if (this.quizFeedback) {
       this.quizFeedback.setY(148);
     }
-    if (this.quizCategoryText) {
-      this.quizCategoryText.setY(QUIZ_CATEGORY_TEXT_Y - QUIZ_DRAW_TEXT_RAISE);
-    }
     if (this.quizText) {
       this.quizText.setY(QUIZ_TEXT_Y - QUIZ_DRAW_TEXT_RAISE);
     }
@@ -2961,15 +2960,27 @@ export default class GameScene extends Phaser.Scene {
 
   completeQuizSuccess(message) {
     this.playQuizCorrectSound();
-    this.quizFeedback.setText(message);
-    this.quizFeedback.setColor('#69db7c');
+    if (this.quizFeedback?.active) {
+      this.quizFeedback.setText(message);
+      this.quizFeedback.setColor('#69db7c');
+    }
     this.isQuizActive = false;
+    this.isQuizLocked = true;
     this.clearQuizCooldownTimer();
     this.clearQuizInteraction();
+    this.clearQuizRestartTimer();
 
-    this.time.delayedCall(900, () => {
-      this.scene.restart();
-    });
+    this.quizRestartTimer = setTimeout(() => {
+      this.quizRestartTimer = null;
+      this.scene.start('GameScene');
+    }, 900);
+  }
+
+  clearQuizRestartTimer() {
+    if (this.quizRestartTimer != null) {
+      clearTimeout(this.quizRestartTimer);
+      this.quizRestartTimer = null;
+    }
   }
 
   submitDrawingQuiz() {
@@ -3041,10 +3052,8 @@ export default class GameScene extends Phaser.Scene {
     this.clearQuizCooldownTimer();
     this.clearQuizInteraction();
 
-    const categoryLabel = QUIZ_CATEGORY_LABELS[this.quizQuestion.category] ?? '';
     const isDraw = getQuizQuestionType(this.quizQuestion) === 'draw';
 
-    this.quizCategoryText.setText(`[${categoryLabel}]`);
     this.quizText.setText(this.quizQuestion.prompt);
 
     if (isDraw) {
@@ -3062,9 +3071,6 @@ export default class GameScene extends Phaser.Scene {
     }
     if (this.quizFeedback) {
       this.quizFeedback.setY(132);
-    }
-    if (this.quizCategoryText) {
-      this.quizCategoryText.setY(QUIZ_CATEGORY_TEXT_Y);
     }
     if (this.quizText) {
       this.quizText.setY(QUIZ_TEXT_Y);
@@ -3143,12 +3149,6 @@ export default class GameScene extends Phaser.Scene {
       color: '#ffffff',
     }).setOrigin(0.5);
 
-    this.quizCategoryText = this.add.text(0, QUIZ_CATEGORY_TEXT_Y, '', {
-      fontFamily: 'Segoe UI, sans-serif',
-      fontSize: '15px',
-      color: '#91a7ff',
-    }).setOrigin(0.5);
-
     this.quizText = this.add.text(0, QUIZ_TEXT_Y, '', {
       fontFamily: 'Segoe UI, sans-serif',
       fontSize: '28px',
@@ -3170,7 +3170,6 @@ export default class GameScene extends Phaser.Scene {
     this.quizPanel.add([
       panelBg,
       quizTitle,
-      this.quizCategoryText,
       this.quizText,
       this.quizButtonContainer,
       this.quizFeedback,

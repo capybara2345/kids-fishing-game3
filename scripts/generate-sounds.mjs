@@ -164,11 +164,77 @@ function generateApexSpawn(sampleRate) {
   return samples;
 }
 
+function generateBite(sampleRate) {
+  const duration = 0.34;
+  const count = Math.floor(sampleRate * duration);
+  const samples = new Array(count);
+
+  for (let i = 0; i < count; i += 1) {
+    const t = i / sampleRate;
+    let sample = 0;
+
+    if (t < 0.05) {
+      sample += (Math.random() * 2 - 1) * Math.exp(-t * 70) * 0.62;
+      sample += Math.sin(2 * Math.PI * 140 * t) * Math.exp(-t * 45) * 0.28;
+    }
+
+    const bloopStart = 0.03;
+    if (t >= bloopStart) {
+      const elapsed = t - bloopStart;
+      const freq = 340 - elapsed * 680;
+      sample += Math.sin(2 * Math.PI * Math.max(110, freq) * elapsed) * Math.exp(-elapsed * 11) * 0.38;
+    }
+
+    if (t >= 0.06 && t < 0.2) {
+      const elapsed = t - 0.06;
+      sample += Math.sin(2 * Math.PI * 920 * elapsed) * Math.exp(-elapsed * 16) * 0.18;
+      sample += Math.sin(2 * Math.PI * 1240 * elapsed) * Math.exp(-elapsed * 22) * 0.1;
+    }
+
+    samples[i] = Math.max(-1, Math.min(1, sample));
+  }
+
+  return samples;
+}
+
+function generateFishEscape(sampleRate) {
+  const duration = 0.5;
+  const count = Math.floor(sampleRate * duration);
+  const samples = new Array(count);
+
+  for (let i = 0; i < count; i += 1) {
+    const t = i / sampleRate;
+    let sample = 0;
+
+    if (t < 0.08) {
+      sample += (Math.random() * 2 - 1) * Math.exp(-t * 35) * 0.45;
+      sample += Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t * 28) * 0.22;
+    }
+
+    if (t >= 0.04) {
+      const elapsed = t - 0.04;
+      const freq = 420 - elapsed * 560;
+      sample += Math.sin(2 * Math.PI * Math.max(100, freq) * elapsed) * Math.exp(-elapsed * 5.5) * 0.3;
+    }
+
+    if (t >= 0.1 && t < 0.34) {
+      const elapsed = t - 0.1;
+      sample += Math.sin(2 * Math.PI * (280 - elapsed * 220) * elapsed) * Math.exp(-elapsed * 7) * 0.18;
+    }
+
+    samples[i] = Math.max(-1, Math.min(1, sample));
+  }
+
+  return samples;
+}
+
 writeWav('cast.wav', generateCast(44100));
 writeWav('catch.wav', generateCatch(44100));
+writeWav('bite.wav', generateBite(44100));
+writeWav('fish_escape.wav', generateFishEscape(44100));
 writeWav('quiz_correct.wav', generateQuizCorrect(44100));
 writeWav('quiz_wrong.wav', generateQuizWrong(44100));
 writeWav('apex_spawn.wav', generateApexSpawn(44100));
 
-console.log('Generated cast.wav, catch.wav, quiz_correct.wav, quiz_wrong.wav, apex_spawn.wav in public/assets/sounds');
+console.log('Generated cast.wav, catch.wav, bite.wav, fish_escape.wav, quiz_correct.wav, quiz_wrong.wav, apex_spawn.wav in public/assets/sounds');
 console.log('BGM uses CC0 track: public/assets/sounds/bgm.mp3');

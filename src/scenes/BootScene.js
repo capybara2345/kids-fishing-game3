@@ -80,6 +80,6 @@ export default class BootScene extends Phaser.Scene {
       this.loadingText.setText('준비 완료!');
     }
 
-    this.scene.start('GameScene');
+    this.scene.start('MenuScene');
   }
 }

@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene.js';
+import MenuScene from './scenes/MenuScene.js';
 import GameScene from './scenes/GameScene.js';
+import GameScene2 from './scenes/GameScene2.js';
+import GameScene3 from './scenes/GameScene3.js';
 import { initFullscreenToggle } from './fullscreen.js';
 
 const config = {
@@ -19,7 +22,7 @@ const config = {
       debug: false,
     },
   },
-  scene: [BootScene, GameScene],
+  scene: [BootScene, MenuScene, GameScene, GameScene2, GameScene3],
   audio: {
     disableWebAudio: false,
     noAudio: false,
